@@ -64,8 +64,16 @@ Two provider abstractions, chosen independently:
 - **Not live-verified:** OpenAI-compatible writer/voice (key has no credits,
   429), Kokoro (310 MB model not pulled), and the Tauri window itself (only
   `cargo check`, no display) — unit-tested / compile-checked.
-- **Still to do:** demo mode, landing page, real app icon, signing secrets.
+- **Still to do:** demo mode, real app icon.
 - No infographic / show-notes card — that is a separate tool.
+
+## Landing page
+
+`landing/index.html` (adapted from Canturía) is deployed to GitHub Pages at
+https://michael-borck.github.io/narra/ by `.github/workflows/pages.yml`. It has
+platform detection, direct `/releases/latest/download/Narra-*` links (releases
+page hidden), and links to Limn / Canturía / Debrief / Talk Buddy. Hero image:
+`landing/assets/narra.png` (headless-Chrome capture of `narra serve`).
 
 ## Local commands
 
