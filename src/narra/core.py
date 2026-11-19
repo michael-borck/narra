@@ -145,38 +145,49 @@ def voice_lines(
     providers: dict[str, Any] = {}
     combined = AudioSegment.empty()
 
-    for index, line in enumerate(lines):
-        speaker = _speaker_for(line, speakers, index)
-        provider_name = voice_override or speaker.provider or "edge"
-        provider = providers.get(provider_name)
-        if provider is None:
-            provider = get_voice(provider_name)
-            providers[provider_name] = provider
+    try:
+        for index, line in enumerate(lines):
+            speaker = _speaker_for(line, speakers, index)
+            provider_name = voice_override or speaker.provider or "edge"
+            provider = providers.get(provider_name)
+            if provider is None:
+                provider = get_voice(provider_name)
+                providers[provider_name] = provider
 
-        vset = voice_settings(settings, provider_name)
-        request = SpeakRequest(
-            text=line.text,
-            voice_id=speaker.voice_id,
-            model=speaker.model or vset.get("model"),
-            base_url=vset.get("base_url"),
-            api_key=vset.get("api_key"),
-            timeout=float(vset.get("timeout") or 120),
-        )
-        if on_progress:
-            on_progress(f"  line {index + 1}/{len(lines)} [{speaker.name} → {provider_name}]")
-        result = provider.synthesize(request)
-        assert isinstance(result, SpeakResult)
-        clip = AudioSegment.from_file(io.BytesIO(result.data), format=result.response_format)
-        combined += clip
-
-        if index < len(lines) - 1:
-            combined += AudioSegment.silent(
-                duration=random.randint(PAUSE_MIN_MS, PAUSE_MAX_MS)
+            vset = voice_settings(settings, provider_name)
+            request = SpeakRequest(
+                text=line.text,
+                voice_id=speaker.voice_id,
+                model=speaker.model or vset.get("model"),
+                base_url=vset.get("base_url"),
+                api_key=vset.get("api_key"),
+                timeout=float(vset.get("timeout") or 120),
             )
+            if on_progress:
+                on_progress(
+                    f"  line {index + 1}/{len(lines)} "
+                    f"[{speaker.name} → {provider_name}]"
+                )
+            result = provider.synthesize(request)
+            assert isinstance(result, SpeakResult)
+            clip = AudioSegment.from_file(
+                io.BytesIO(result.data), format=result.response_format
+            )
+            combined += clip
 
-    buffer = io.BytesIO()
-    combined.export(buffer, format="mp3")
-    return buffer.getvalue()
+            if index < len(lines) - 1:
+                combined += AudioSegment.silent(
+                    duration=random.randint(PAUSE_MIN_MS, PAUSE_MAX_MS)
+                )
+
+        buffer = io.BytesIO()
+        combined.export(buffer, format="mp3")
+        return buffer.getvalue()
+    except FileNotFoundError as e:
+        raise GenerationError(
+            "Audio stitching needs ffmpeg on PATH. Install it (e.g. "
+            "`brew install ffmpeg`, `apt install ffmpeg`, or `winget install ffmpeg`)."
+        ) from e
 
 
 def slugify(text: str, max_length: int = 48) -> str:

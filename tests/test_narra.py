@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 
 import pytest
 
@@ -234,6 +235,8 @@ def test_openai_voice_returns_bytes(monkeypatch):
 
 def test_voice_lines_stitches_and_maps_speakers(monkeypatch):
     pytest.importorskip("pydub")
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not on PATH")
     import io
 
     from pydub import AudioSegment
