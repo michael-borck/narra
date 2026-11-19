@@ -1,12 +1,12 @@
 # Narra desktop release: thin caller for the app-hq shared Tauri pipeline.
 #
-# Push a tag like desktop-v0.1.0 to build, sign, notarize, and publish the
-# installers. Manual dispatch runs the pipeline too.
+# Push a release tag like v0.4.0 (the same tag as the PyPI release) to build,
+# sign, notarize, and publish the installers. Manual dispatch runs it too.
 name: Release desktop
 
 on:
   push:
-    tags: ["desktop-v*"]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:

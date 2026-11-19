@@ -38,12 +38,26 @@ On this repo's exFAT drive, set `CARGO_TARGET_DIR` to an internal disk.
 
 ## Release
 
-Bump `NARRA_VERSION` (if a new release is on PyPI) and the versions in
-`src-tauri/tauri.conf.json` + `src-tauri/Cargo.toml`, then push a `desktop-v*`
-tag. `.github/workflows/desktop.yml` builds macOS (arm64 + x86_64), Windows
-(msi/exe) and Linux (AppImage/deb/rpm) installers via the shared app-hq
-pipeline. macOS builds are signed/notarized when the Apple secrets are set;
-Windows/Linux are unsigned.
+The desktop build uses the same `v*` tag as the PyPI release (e.g. `v0.5.0`):
+`desktop.yml` calls the shared app-hq Tauri pipeline, and `NARRA_VERSION` in
+`src-tauri/src/main.rs` plus the versions in `src-tauri/tauri.conf.json` +
+`src-tauri/Cargo.toml` all match the Python package version. Then:
+
+```bash
+git tag v0.5.0 && git push origin v0.5.0
+```
+
+CI builds macOS (arm64 + x86_64), Windows (msi/exe) and Linux (AppImage/deb/rpm)
+installers. macOS builds are signed and notarized when the Apple secrets are
+set; Windows/Linux are unsigned.
+
+### Sidecars
+
+Narra does not bundle a Python sidecar — the shell installs `narra[serve]` into
+a uv venv on first launch (like Canturía). So there is no Mach-O sidecar to sign
+at build time; tauri-action signs the Rust shell, and the runtime download is
+per-user. (The app-hq `PyInstaller / sidecar bundles` steps only apply to apps
+that ship a bundled backend, e.g. Document Lens.)
 
 ## Icons
 

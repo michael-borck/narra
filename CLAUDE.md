@@ -16,7 +16,7 @@ Two provider abstractions, chosen independently:
   (`/v1/audio/speech`), `gemini` (native), `piper` (local CPU), `kokoro`
   (local CPU / Speaches)
 
-## Status (0.4.0 — M4)
+## Status (0.5.0 — M4 desktop release)
 
 - **M1 done:** `narra "source.pdf" --format ... --out ...` runs end to end.
   - Writers: `gemini` (default, `gemini-flash-latest`, v1beta), `openai-compatible`
@@ -45,7 +45,7 @@ Two provider abstractions, chosen independently:
     per voice from a single script.
 - **M4 done:** Tauri v2 desktop shell (`desktop/`).
   - `desktop/src-tauri/src/main.rs` — bootstraps a private uv venv, installs
-    `narra[serve]==NARRA_VERSION` (0.4.0), runs `narra serve --no-browser
+    `narra[serve]==NARRA_VERSION` (0.5.0), runs `narra serve --no-browser
     --desktop --host 127.0.0.1 --port <rand> --out-dir ~/Podcasts/Narra` as a
     sidecar, shows the served UI in an iframe.
   - `serve` gained `--no-browser`, `--desktop`, `--out-dir` for the sidecar.
@@ -53,8 +53,10 @@ Two provider abstractions, chosen independently:
     (chmod 600): writer, voice, Gemini/OpenAI/Ollama keys+models, piper/kokoro
     voices. `NARRA_DEV_PATH` installs the local source for dev.
   - `cargo check` passes; icons are Canturía placeholders for now.
-  - `.github/workflows/desktop.yml` builds installers on `desktop-v*` tags via
-    the shared app-hq pipeline (stable `Narra-*` asset aliases).
+  - `.github/workflows/desktop.yml` builds installers on `v*` tags (same tag as
+    the PyPI release) via the shared app-hq pipeline (stable `Narra-*` asset
+    aliases). No bundled sidecar — the Python runtime is uv-installed on first
+    launch, so no sidecar Mach-O signing is needed (unlike Document Lens).
 - **Live-verified:** Gemini writer + edge voice (CLI, 71 s); Gemini writer +
   Gemini voice (CLI, two-speaker); full web flow (script → 48 s MP3 → gallery →
   save → round-trip); **Piper local voice** (downloaded + synthesized a 5.5 s
@@ -79,7 +81,7 @@ uv run --no-sync pytest
 
 ```bash
 uv build
-twine upload dist/narra-0.4.0*     # uses ~/.pypirc
+twine upload dist/narra-0.5.0*     # uses ~/.pypirc
 ```
 
 CI `publish.yml` also builds on `v*` tags via `pypa/gh-action-pypi-publish`, but
