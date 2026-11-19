@@ -310,3 +310,6 @@ Narra borrows ideas, with acknowledgment, from:
   voices, no Python deps) and `kokoro` (`kokoro-onnx`). Per-speaker voice
   overrides (any speaker can use any provider). `narra compare` writes one MP3
   per voice from a single script.
+- **0.4.0 — M4.** Tauri v2 desktop shell (`desktop/`): uv-bootstrapped private
+  runtime, `narra serve` sidecar, BYOK Settings sheet writing `~/.narra.yaml`.
+  `serve` gained `--no-browser` / `--desktop` / `--out-dir` for the sidecar.

@@ -249,10 +249,24 @@ def serve(
     host: str | None = typer.Option(None, "--host", help="Bind host."),
     port: int | None = typer.Option(None, "--port", "-p", help="Bind port."),
     config: str | None = typer.Option(None, "--config", "-c", help="Config file."),
+    out_dir: str | None = typer.Option(
+        None, "--out-dir", help="Override the directory saved episodes go to."
+    ),
+    no_browser: bool = typer.Option(
+        False, "--no-browser", help="Accepted for the desktop shell (no-op)."
+    ),
+    desktop: bool = typer.Option(
+        False, "--desktop", help="Desktop mode: bind localhost with no token gate."
+    ),
 ) -> None:
     """Run the local web UI (needs the [serve] extra)."""
+    _ = (no_browser, desktop)  # accepted for parity with the desktop sidecar
     settings = _load(config)
     serve_cfg = settings.get("serve") or {}
+    if out_dir:
+        serve_cfg = dict(serve_cfg)
+        serve_cfg["out_dir"] = out_dir
+        settings["serve"] = serve_cfg
     bind_host = host or str(serve_cfg.get("host") or "127.0.0.1")
     bind_port = int(port or serve_cfg.get("port") or 5372)
     try:

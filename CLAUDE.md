@@ -16,7 +16,7 @@ Two provider abstractions, chosen independently:
   (`/v1/audio/speech`), `gemini` (native), `piper` (local CPU), `kokoro`
   (local CPU / Speaches)
 
-## Status (0.3.0 — M3)
+## Status (0.4.0 — M4)
 
 - **M1 done:** `narra "source.pdf" --format ... --out ...` runs end to end.
   - Writers: `gemini` (default, `gemini-flash-latest`, v1beta), `openai-compatible`
@@ -43,14 +43,26 @@ Two provider abstractions, chosen independently:
   - Per-speaker voice overrides (any speaker → any provider).
   - `narra compare SRC --voice edge --voice gemini [--out-dir]` writes one MP3
     per voice from a single script.
+- **M4 done:** Tauri v2 desktop shell (`desktop/`).
+  - `desktop/src-tauri/src/main.rs` — bootstraps a private uv venv, installs
+    `narra[serve]==NARRA_VERSION` (0.4.0), runs `narra serve --no-browser
+    --desktop --host 127.0.0.1 --port <rand> --out-dir ~/Podcasts/Narra` as a
+    sidecar, shows the served UI in an iframe.
+  - `serve` gained `--no-browser`, `--desktop`, `--out-dir` for the sidecar.
+  - Settings sheet (`desktop/ui/index.html`) reads/writes `~/.narra.yaml`
+    (chmod 600): writer, voice, Gemini/OpenAI/Ollama keys+models, piper/kokoro
+    voices. `NARRA_DEV_PATH` installs the local source for dev.
+  - `cargo check` passes; icons are Canturía placeholders for now.
+  - `.github/workflows/desktop.yml` builds installers on `desktop-v*` tags via
+    the shared app-hq pipeline (stable `Narra-*` asset aliases).
 - **Live-verified:** Gemini writer + edge voice (CLI, 71 s); Gemini writer +
   Gemini voice (CLI, two-speaker); full web flow (script → 48 s MP3 → gallery →
   save → round-trip); **Piper local voice** (downloaded + synthesized a 5.5 s
-  WAV, first run 18 s).
+  WAV); **narra compare** (edge 47.0 s vs piper 47.6 s); sidecar flags serve.
 - **Not live-verified:** OpenAI-compatible writer/voice (key has no credits,
-  429) and Kokoro (310 MB model not pulled here) — both unit-tested with mocks.
-  Ollama not run (no local server).
-- **Still skeleton:** desktop (M4), demo mode, landing page.
+  429), Kokoro (310 MB model not pulled), and the Tauri window itself (only
+  `cargo check`, no display) — unit-tested / compile-checked.
+- **Still to do:** demo mode, landing page, real app icon, signing secrets.
 - No infographic / show-notes card — that is a separate tool.
 
 ## Local commands
@@ -67,7 +79,7 @@ uv run --no-sync pytest
 
 ```bash
 uv build
-twine upload dist/narra-0.3.0*     # uses ~/.pypirc
+twine upload dist/narra-0.4.0*     # uses ~/.pypirc
 ```
 
 CI `publish.yml` also builds on `v*` tags via `pypa/gh-action-pypi-publish`, but

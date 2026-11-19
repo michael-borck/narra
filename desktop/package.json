@@ -1,0 +1,13 @@
+{
+  "name": "narra-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Narra Tauri shell",
+  "scripts": {
+    "tauri": "tauri",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

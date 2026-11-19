@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Narra",
+  "version": "0.1.0",
+  "identifier": "org.borck.narra",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Narra",
+        "width": 1180,
+        "height": 840,
+        "minWidth": 760,
+        "minHeight": 560
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "AudioVideo",
+    "shortDescription": "Privacy-first source-to-podcast — bring your own writer and voice",
+    "longDescription": "Turn a PDF or text file into a multi-speaker podcast episode. No account, no telemetry; the script is written and each line voiced by the providers you configure (Gemini, any OpenAI-compatible endpoint, Ollama, edge-tts, or local Piper/Kokoro) and saved locally.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

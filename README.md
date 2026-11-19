@@ -50,13 +50,20 @@ narra compare "paper.pdf" --voice edge --voice piper --out-dir out/
 # writes one MP3 per voice from a single script
 ```
 
+## Desktop app
+
+A native Tauri v2 shell lives in `desktop/`. It bootstraps a private Python
+runtime with `uv`, runs `narra serve` as a localhost sidecar, and shows the web
+UI with a Settings sheet for your writer and voice. Installers are built by
+`.github/workflows/desktop.yml` on `desktop-v*` tags. See `desktop/README.md`.
+
 ## Status
 
-**0.3.0 — M3.** The core runs end to end (source → script → voicing → MP3 +
+**0.4.0 — M4.** The core runs end to end (source → script → voicing → MP3 +
 sidecar), `narra serve` adds a local web UI (write → edit → speak, gallery,
-Save), and local CPU voices are here: **Piper** (auto-downloaded, no Python deps)
-and **Kokoro** (`narra[local]`), plus `narra compare` to A/B voices. The desktop
-app (M4) is still to come. See `SPEC.md` for the full design and milestones.
+Save), local CPU voices (Piper, Kokoro) and `narra compare` are in, and the
+Tauri desktop shell is built. Still to come: demo mode, landing page, and a real
+app icon. See `SPEC.md` for the full design and milestones.
 
 ## Privacy
 

@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Narra</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1f24; --muted: #6b7280;
+    --line: #e3e1dc; --accent: #2f6f4f; --accent-ink: #ffffff; --danger: #c2452d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101216; --panel: #181b21; --ink: #e8e6e1; --muted: #8b93a1;
+      --line: #262a32; --accent: #7bd88f; --accent-ink: #10231a; --danger: #e06c50;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .5rem .9rem; border-bottom: 1px solid var(--line);
+    background: var(--panel); user-select: none; flex: none;
+  }
+  header .title { font-weight: 650; }
+  #status { color: var(--muted); font-size: .85rem; flex: 1; }
+  header button {
+    font: inherit; border: 1px solid var(--line); border-radius: 7px;
+    background: transparent; color: var(--ink); padding: .3rem .7rem; cursor: pointer;
+  }
+  header button:hover { border-color: var(--muted); }
+  main { flex: 1; position: relative; min-height: 0; }
+  iframe#app { width: 100%; height: 100%; border: 0; display: none; background: var(--bg); }
+  #overlay {
+    position: absolute; inset: 0; overflow: auto; padding: 2rem 1.5rem;
+    display: flex; justify-content: center; background: var(--bg);
+  }
+  .sheet { width: 100%; max-width: 520px; }
+  .sheet h1 { font-size: 1.3rem; margin: 0 0 .25rem; }
+  .sheet .sub { color: var(--muted); margin: 0 0 1.2rem; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.2rem; }
+  .card + .card { margin-top: .8rem; }
+  .card h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 .6rem; font-weight: 600; }
+  label { display: block; font-size: .8rem; color: var(--muted); margin: .7rem 0 .25rem; }
+  label:first-child { margin-top: 0; }
+  input, select {
+    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 7px; padding: .45rem .6rem;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .actions { display: flex; gap: .6rem; margin-top: 1.1rem; align-items: center; }
+  .primary { font: inherit; font-weight: 600; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); padding: .5rem 1.2rem; cursor: pointer; }
+  .ghost { font: inherit; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); padding: .5rem .9rem; cursor: pointer; }
+  #err { color: var(--danger); font-size: .85rem; margin-top: .8rem; white-space: pre-wrap; }
+  .note { color: var(--muted); font-size: .78rem; margin-top: 1rem; }
+  .boot { text-align: center; margin-top: 16vh; color: var(--muted); }
+  .boot .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; margin-right: .5rem; animation: pulse 1.1s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <span class="title">🎙️ Narra</span>
+  <span id="status">starting…</span>
+  <button id="btn-settings" title="Writer &amp; voice settings">⚙ Settings</button>
+</header>
+<main>
+  <iframe id="app" title="Narra"></iframe>
+  <div id="overlay">
+    <div class="sheet">
+      <div id="boot" class="boot"><span class="dot"></span><span id="boot-msg">Starting Narra…</span></div>
+
+      <div id="settings" class="hidden">
+        <h1>Your writer &amp; voice</h1>
+        <p class="sub">Bring your own providers — the script goes only to your writer, each line only to its voice. Saved to <code>~/.narra.yaml</code>.</p>
+
+        <div class="card">
+          <label for="writer">Writer (writes the script)</label>
+          <select id="writer">
+            <option value="gemini">Gemini</option>
+            <option value="openai-compatible">OpenAI-compatible (BYOK)</option>
+            <option value="ollama">Ollama (local)</option>
+          </select>
+          <label for="voice">Default voice (speaks each line)</label>
+          <select id="voice">
+            <option value="edge">edge — free, no key</option>
+            <option value="openai-compatible">OpenAI-compatible (/v1/audio/speech)</option>
+            <option value="gemini">Gemini native TTS</option>
+            <option value="piper">Piper — local CPU</option>
+            <option value="kokoro">Kokoro — local CPU</option>
+          </select>
+        </div>
+
+        <div class="card">
+          <h2>Gemini</h2>
+          <label for="gemini_key">API key</label>
+          <input id="gemini_key" type="password" placeholder="GEMINI_API_KEY">
+        </div>
+
+        <div class="card">
+          <h2>OpenAI-compatible (writer + voice)</h2>
+          <label for="openai_url">Base URL</label>
+          <input id="openai_url" placeholder="https://api.openai.com/v1">
+          <label for="openai_key">API key</label>
+          <input id="openai_key" type="password" placeholder="optional for local servers">
+          <div class="grid2">
+            <div>
+              <label for="openai_writer_model">Writer model</label>
+              <input id="openai_writer_model" placeholder="gpt-4o-mini">
+            </div>
+            <div>
+              <label for="openai_voice_model">Voice model</label>
+              <input id="openai_voice_model" placeholder="gpt-4o-mini-tts">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Ollama (local)</h2>
+          <div class="grid2">
+            <div>
+              <label for="ollama_url">Base URL</label>
+              <input id="ollama_url" placeholder="http://127.0.0.1:11434">
+            </div>
+            <div>
+              <label for="ollama_model">Model</label>
+              <input id="ollama_model" placeholder="qwen3.5:4b">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Local voices</h2>
+          <div class="grid2">
+            <div>
+              <label for="piper_voice">Piper voice</label>
+              <input id="piper_voice" placeholder="en_US-amy-low">
+            </div>
+            <div>
+              <label for="kokoro_voice">Kokoro voice</label>
+              <input id="kokoro_voice" placeholder="af_sarah">
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="btn-save">Save &amp; start</button>
+          <button class="ghost hidden" id="btn-cancel">Cancel</button>
+        </div>
+        <div id="err"></div>
+        <p class="note">Privacy: no account, no telemetry. The only network traffic is to the writer and voice providers you set here. Episodes are saved to ~/Podcasts/Narra.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+const $ = id => document.getElementById(id);
+
+let serverPort = null;
+let settingsOpen = false;
+
+listen("status", e => { $("status").textContent = e.payload; $("boot-msg").textContent = e.payload; });
+
+function showApp() {
+  $("overlay").classList.add("hidden");
+  $("app").style.display = "block";
+  $("status").textContent = "ready — local server on 127.0.0.1:" + serverPort;
+}
+
+function showSettings(cancellable) {
+  settingsOpen = true;
+  $("overlay").classList.remove("hidden");
+  $("boot").classList.add("hidden");
+  $("settings").classList.remove("hidden");
+  $("btn-cancel").classList.toggle("hidden", !cancellable);
+  $("err").textContent = "";
+}
+
+function showBoot(msg) {
+  $("overlay").classList.remove("hidden");
+  $("settings").classList.add("hidden");
+  $("boot").classList.remove("hidden");
+  if (msg) $("boot-msg").textContent = msg;
+}
+
+const FIELDS = ["writer","voice","gemini_key","openai_url","openai_key","openai_writer_model",
+  "openai_voice_model","ollama_url","ollama_model","piper_voice","kokoro_voice"];
+
+async function loadSettingsForm() {
+  const s = await invoke("get_settings");
+  for (const f of FIELDS) if (s[f] != null) $(f).value = s[f];
+  return s;
+}
+
+function collectSettings() {
+  const out = {};
+  for (const f of FIELDS) out[f] = ($(f).value || "").trim();
+  return out;
+}
+
+async function boot(update) {
+  if (!settingsOpen) showBoot();
+  try {
+    serverPort = await invoke("start_server", { update: !!update });
+    $("app").src = "http://127.0.0.1:" + serverPort + "/";
+    if (settingsOpen) $("status").textContent = "set up your providers";
+    else showApp();
+  } catch (e) {
+    $("status").textContent = "error";
+    showSettings(false);
+    $("err").textContent = String(e);
+  }
+}
+
+$("btn-save").onclick = async () => {
+  $("err").textContent = "";
+  try {
+    await invoke("save_settings", { settings: collectSettings() });
+    settingsOpen = false;
+    showBoot("Restarting Narra…");
+    serverPort = await invoke("restart_server");
+    $("app").src = "http://127.0.0.1:" + serverPort + "/";
+    showApp();
+  } catch (e) {
+    $("err").textContent = String(e);
+  }
+};
+
+$("btn-cancel").onclick = () => { settingsOpen = false; if (serverPort) showApp(); };
+$("btn-settings").onclick = async () => { await loadSettingsForm(); showSettings(!!serverPort); };
+
+(async function init() {
+  await loadSettingsForm();
+  await boot(false);
+})();
+</script>
+</body>
+</html>
