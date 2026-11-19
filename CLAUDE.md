@@ -16,7 +16,7 @@ Two provider abstractions, chosen independently:
   (`/v1/audio/speech`), `gemini` (native), `piper` (local CPU), `kokoro`
   (local CPU / Speaches)
 
-## Status (0.1.0 — M1)
+## Status (0.2.0 — M2)
 
 - **M1 done:** `narra "source.pdf" --format ... --out ...` runs end to end.
   - Writers: `gemini` (default, `gemini-flash-latest`, v1beta), `openai-compatible`
@@ -27,12 +27,20 @@ Two provider abstractions, chosen independently:
   - `core.generate()`: read source → writer → per-line voicing → pydub stitch
     (180–420 ms pauses) → MP3 + JSON sidecar. `--voice` overrides all lines;
     per-speaker providers come from `speakers:` profiles.
-- **Live-verified:** Gemini writer + edge voice (7-line brief, 71 s), Gemini
-  writer + Gemini voice (3-line two-speaker, Fenrir/Leda), stitching + mp3.
-- **Not live-verified:** OpenAI-compatible writer/voice — the available key has
-  no credits (429); the error path is clean and the code is unit-tested with
-  mocked HTTP. Ollama not run (no local server here).
-- **Still skeleton:** `serve` (M2), `piper`/`kokoro` (M3), desktop (M4).
+- **M2 done:** `narra serve` web UI (`src/narra/serve.py` + `serve_page.html`).
+  - Two-step flow: `POST /api/script` (write) → `POST /api/audio` (speak), so the
+    script is editable before any TTS spend.
+  - Endpoints: `/api/config`, `/api/extract` (txt/pdf upload), `/api/script`,
+    `/api/audio`, `/api/episodes` (list/audio/delete/save). Optional token gate
+    (`X-Narra-Token` / `?token=` / cookie); generated for non-local binds.
+  - In-memory gallery (cap 50); Save writes MP3 + sidecar to `serve.out_dir`
+    (default `~/Podcasts/Narra`). Self-contained page, no CDNs.
+- **Live-verified:** Gemini writer + edge voice (CLI, 71 s); Gemini writer +
+  Gemini voice (CLI, two-speaker); full web flow (script → 48 s MP3 → gallery →
+  save → audio round-trip) via HTTP.
+- **Not live-verified:** OpenAI-compatible writer/voice (key has no credits, 429)
+  — unit-tested with mocked HTTP. Ollama not run (no local server).
+- **Still skeleton:** `piper`/`kokoro` (M3), desktop (M4).
 - No infographic / show-notes card — that is a separate tool.
 
 ## Local commands
@@ -49,7 +57,7 @@ uv run --no-sync pytest
 
 ```bash
 uv build
-twine upload dist/narra-0.1.0*     # uses ~/.pypirc
+twine upload dist/narra-0.2.0*     # uses ~/.pypirc
 ```
 
 CI `publish.yml` also builds on `v*` tags via `pypa/gh-action-pypi-publish`, but

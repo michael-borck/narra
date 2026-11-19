@@ -187,9 +187,18 @@ def serve(
         )
         raise typer.Exit(code=1) from e
 
+    import secrets
+
     import uvicorn
 
-    uvicorn.run(create_app(settings), host=bind_host, port=bind_port)
+    password = serve_cfg.get("password")
+    if not password and bind_host not in ("127.0.0.1", "localhost", "::1"):
+        password = secrets.token_urlsafe(9)
+        console.print(
+            f"Binding to {bind_host} with no password set — generated one: {password}"
+        )
+
+    uvicorn.run(create_app(settings, token=password), host=bind_host, port=bind_port)
 
 
 if __name__ == "__main__":

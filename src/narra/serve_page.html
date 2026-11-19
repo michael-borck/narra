@@ -5,42 +5,479 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Narra</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #262b36;
+    --text: #e7e9ee; --muted: #8b93a1; --accent: #6ea8fe; --accent2: #2b3b5c;
+    --danger: #f2777a; --ok: #7bd88f;
+  }
+  * { box-sizing: border-box; }
   body {
-    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    margin: 0; background: #0f1115; color: #e7e9ee;
-    display: grid; place-items: center; min-height: 100vh;
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  main { max-width: 640px; padding: 2.5rem; }
-  h1 { font-size: 2rem; margin: 0 0 .25rem; letter-spacing: -0.02em; }
-  .tag { color: #8b93a1; margin: 0 0 2rem; }
+  header {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .9rem 1.25rem; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: rgba(15,17,21,.9);
+    backdrop-filter: blur(8px); z-index: 10;
+  }
+  header h1 { font-size: 1.15rem; margin: 0; letter-spacing: -0.02em; }
+  header .tag { color: var(--muted); font-size: .85rem; }
+  header .spacer { flex: 1; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 1.25rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
   .card {
-    background: #171a21; border: 1px solid #262b36; border-radius: 14px;
-    padding: 1.5rem 1.75rem;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 1.1rem 1.25rem;
   }
+  .card h2 {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--muted); margin: 0 0 .75rem; font-weight: 600;
+  }
+  label { display: block; font-size: .82rem; color: var(--muted); margin: .6rem 0 .3rem; }
+  textarea, input, select {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 9px; padding: .55rem .7rem;
+    font: inherit; outline: none;
+  }
+  textarea:focus, input:focus, select:focus { border-color: var(--accent); }
+  textarea { min-height: 130px; resize: vertical; }
+  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  button {
+    background: var(--accent); color: #0a0d12; font-weight: 600; font: inherit;
+    border: none; border-radius: 9px; padding: .5rem .85rem; cursor: pointer;
+    display: inline-flex; align-items: center; gap: .4rem;
+  }
+  button.secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  button.danger { background: transparent; color: var(--danger); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; cursor: default; }
+  .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .chip {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 999px; padding: .3rem .75rem; cursor: pointer; font-size: .85rem;
+  }
+  .chip.active { background: var(--accent2); border-color: var(--accent); color: #cfe0ff; }
+  .speaker-row {
+    display: grid; grid-template-columns: 1.1fr 1.4fr 1fr auto;
+    gap: .4rem; align-items: center; margin-bottom: .4rem;
+  }
+  .line-row {
+    display: grid; grid-template-columns: 7rem 1fr auto;
+    gap: .4rem; align-items: start; margin-bottom: .4rem;
+  }
+  .line-row textarea { min-height: 46px; }
+  .status { color: var(--muted); font-size: .88rem; min-height: 1.2em; margin-top: .5rem; }
+  .status.err { color: var(--danger); }
+  .status.ok { color: var(--ok); }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .75rem; }
+  .ep {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 11px;
+    padding: .7rem .8rem;
+  }
+  .ep .meta { font-size: .78rem; color: var(--muted); margin-bottom: .5rem; }
+  .ep audio { width: 100%; }
+  dialog {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 14px; max-width: 620px; padding: 1.25rem 1.5rem;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog h2 { margin-top: 0; }
+  dialog h3 { font-size: .9rem; color: var(--accent); margin: 1rem 0 .3rem; }
   code {
-    background: #0f1115; border: 1px solid #262b36; border-radius: 6px;
-    padding: .1rem .4rem; font-size: .9em;
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
+    padding: .1rem .35rem; font-size: .88em;
   }
-  a { color: #6ea8fe; }
+  .hidden { display: none !important; }
   .pill {
-    display: inline-block; font-size: .75rem; letter-spacing: .08em;
-    text-transform: uppercase; color: #6ea8fe; border: 1px solid #2b3b5c;
-    border-radius: 999px; padding: .15rem .6rem; margin-bottom: 1rem;
+    display: inline-block; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid var(--accent2); border-radius: 999px;
+    padding: .12rem .55rem; margin-left: .5rem;
   }
 </style>
 </head>
 <body>
-  <main>
-    <span class="pill">Narra</span>
-    <h1>Tell it into a podcast.</h1>
-    <p class="tag">Source in. Multi-speaker episode out.</p>
-    <div class="card">
-      <p>The web UI arrives in <strong>M2</strong>. This is the 0.0.1 skeleton.</p>
-      <p>In the meantime, use the CLI:</p>
-      <p><code>narra "paper.pdf" --format deep-dive --out episode.mp3</code></p>
-      <p><a href="/api/health">health</a></p>
-    </div>
-  </main>
+<header>
+  <h1>Narra <span class="pill" id="ver">…</span></h1>
+  <span class="tag">source → podcast</span>
+  <span class="spacer"></span>
+  <span class="tag" id="authState"></span>
+  <button class="ghost" id="helpBtn">Help</button>
+</header>
+
+<div class="wrap">
+  <div class="row hidden" id="tokenBar" style="margin-bottom:1rem">
+    <input id="tokenInput" placeholder="Access token" style="max-width:320px" />
+    <button id="tokenBtn">Unlock</button>
+    <span class="status" id="tokenMsg"></span>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>1 · Source</h2>
+      <div class="row" style="margin-bottom:.5rem">
+        <input type="file" id="fileInput" accept=".txt,.md,.pdf,text/plain,application/pdf" style="flex:1" />
+      </div>
+      <textarea id="source" placeholder="Paste text, or choose a .txt/.pdf file above…"></textarea>
+
+      <h2 style="margin-top:1.2rem">2 · Format</h2>
+      <div class="chips" id="formats"></div>
+      <label for="customFormat">Or a custom briefing (overrides the chip)</label>
+      <input id="customFormat" placeholder="e.g. A 5-part history, one host, punchy…" />
+
+      <h2 style="margin-top:1.2rem">3 · Voices</h2>
+      <div class="row">
+        <div style="flex:1">
+          <label for="writer">Writer</label>
+          <select id="writer"></select>
+        </div>
+        <div style="flex:1">
+          <label for="voice">Default voice</label>
+          <select id="voice"></select>
+        </div>
+      </div>
+
+      <label style="margin-top:.8rem">Speakers</label>
+      <div id="speakers"></div>
+      <div class="row" style="margin-top:.4rem">
+        <button class="ghost" id="addSpeaker">+ Add speaker</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>4 · Script</h2>
+      <button id="writeBtn">Write script</button>
+      <div id="scriptEditor" class="hidden" style="margin-top:.9rem">
+        <div id="lines"></div>
+        <div class="row">
+          <button class="ghost" id="addLine">+ Add line</button>
+          <button id="speakBtn" style="margin-left:auto">Speak this script</button>
+        </div>
+      </div>
+      <div class="status" id="status"></div>
+
+      <div id="result" class="hidden" style="margin-top:1rem">
+        <audio id="player" controls></audio>
+        <div class="row" style="margin-top:.5rem">
+          <button id="saveBtn">Save</button>
+          <button class="secondary" id="downloadBtn">Download</button>
+          <button class="danger" id="deleteBtn">Delete</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:1.25rem">
+    <h2>Session gallery</h2>
+    <div class="gallery" id="gallery"></div>
+    <div class="status" id="galleryMsg"></div>
+  </section>
+</div>
+
+<dialog id="help">
+  <h2>How Narra works</h2>
+  <h3>1 · Source</h3>
+  <p>Paste text or choose a <code>.txt</code> / <code>.pdf</code> file. PDFs are read on your machine.</p>
+  <h3>2 · Format</h3>
+  <p>Pick a chip (<em>deep-dive, brief, critique, debate</em>) or type a custom briefing. The <strong>writer</strong> turns the source into a script.</p>
+  <h3>3 · Voices</h3>
+  <p>The <strong>writer</strong> is the LLM (Gemini, any OpenAI-compatible endpoint, or Ollama). The <strong>voice</strong> speaks each line (edge is free; OpenAI-compatible uses <code>/v1/audio/speech</code>; Gemini is native). Each speaker can use a different voice.</p>
+  <h3>4 · Script</h3>
+  <p>Write the script, <strong>edit any line</strong>, then “Speak this script”. The episode joins the in-memory gallery — <strong>Save</strong> writes the MP3 + a JSON sidecar to your podcasts folder.</p>
+  <h3>Privacy</h3>
+  <p>No account, no telemetry. The only network traffic is to the writer and voice providers you configure. The gallery lives in memory and disappears when the server stops.</p>
+  <p><a href="#" id="closeHelp">Close</a></p>
+</dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let TOKEN = localStorage.getItem("narra_token") || "";
+let CONFIG = null;
+let CURRENT = null; // { id, transcript }
+
+function withToken(opts = {}) {
+  const headers = new Headers(opts.headers || {});
+  if (TOKEN) headers.set("X-Narra-Token", TOKEN);
+  return { ...opts, headers };
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, withToken(opts));
+  if (res.status === 401) { showTokenBar("A token is required."); throw new Error("unauthorized"); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || ("HTTP " + res.status));
+  return data;
+}
+
+function showTokenBar(msg) {
+  $("tokenBar").classList.remove("hidden");
+  $("tokenMsg").textContent = msg || "";
+}
+function setStatus(msg, kind) {
+  const el = $("status");
+  el.textContent = msg || "";
+  el.className = "status" + (kind ? " " + kind : "");
+}
+
+async function loadConfig() {
+  try {
+    CONFIG = await api("/api/config");
+  } catch (e) { return; }
+  $("ver").textContent = CONFIG.version;
+  $("authState").textContent = CONFIG.requires_token ? "token set" : "local";
+  if (CONFIG.requires_token && !TOKEN) { showTokenBar("Enter the access token to continue."); return; }
+  $("tokenBar").classList.add("hidden");
+
+  // formats
+  $("formats").innerHTML = "";
+  CONFIG.formats.forEach((f) => {
+    const b = document.createElement("button");
+    b.className = "chip" + (f.key === CONFIG.format ? " active" : "");
+    b.textContent = f.label;
+    b.onclick = () => {
+      document.querySelectorAll("#formats .chip").forEach((c) => c.classList.remove("active"));
+      b.classList.add("active");
+      $("customFormat").value = "";
+      b.dataset.key = f.key;
+    };
+    b.dataset.key = f.key;
+    $("formats").appendChild(b);
+  });
+
+  // writer / voice selects
+  $("writer").innerHTML = CONFIG.writers.map((w) => `<option${w === CONFIG.writer ? " selected" : ""}>${w}</option>`).join("");
+  $("voice").innerHTML = CONFIG.voices.map((v) => `<option${v === CONFIG.voice ? " selected" : ""}>${v}</option>`).join("");
+
+  renderSpeakers(CONFIG.speakers || []);
+  loadGallery();
+}
+
+function providerOptions(selected) {
+  return CONFIG.voices.map((v) => `<option${v === selected ? " selected" : ""}>${v}</option>`).join("");
+}
+
+function renderSpeakers(list) {
+  const box = $("speakers");
+  box.innerHTML = "";
+  if (!list.length) list = [{ name: "Alex", persona: "", provider: "edge", voice_id: "en-US-AndrewNeural" }];
+  list.forEach((s) => box.appendChild(speakerRow(s)));
+}
+
+function speakerRow(s) {
+  const row = document.createElement("div");
+  row.className = "speaker-row";
+  row.innerHTML = `
+    <input class="s-name" value="${s.name || ""}" placeholder="Name" />
+    <input class="s-persona" value="${s.persona || ""}" placeholder="Persona" />
+    <select class="s-provider">${providerOptions(s.provider || "edge")}</select>
+    <button class="ghost s-remove" title="Remove">✕</button>
+    <input class="s-voice" style="grid-column:1 / 4" value="${s.voice_id || ""}" placeholder="voice id" />`;
+  // voice id on its own line for room
+  row.querySelector(".s-remove").onclick = () => row.remove();
+  return row;
+}
+
+function readSpeakers() {
+  const out = [];
+  document.querySelectorAll("#speakers .speaker-row").forEach((row) => {
+    out.push({
+      name: row.querySelector(".s-name").value.trim(),
+      persona: row.querySelector(".s-persona").value.trim(),
+      provider: row.querySelector(".s-provider").value,
+      voice_id: row.querySelector(".s-voice").value.trim(),
+    });
+  });
+  return out;
+}
+
+function currentFormat() {
+  const custom = $("customFormat").value.trim();
+  if (custom) return custom;
+  const active = document.querySelector("#formats .chip.active");
+  return active ? active.dataset.key : "deep-dive";
+}
+
+function currentWriter() { return $("writer").value; }
+
+async function writeScript() {
+  const source = $("source").value.trim();
+  if (!source) { setStatus("Add some source text first.", "err"); return; }
+  setStatus("Writing the script…");
+  $("writeBtn").disabled = true;
+  try {
+    const data = await api("/api/script", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source_text: source,
+        format: currentFormat(),
+        writer: currentWriter(),
+        speakers: readSpeakers(),
+      }),
+    });
+    renderLines(data.lines);
+    setStatus(`Wrote ${data.lines.length} lines with ${data.writer}.`, "ok");
+  } catch (e) {
+    setStatus(e.message, "err");
+  } finally {
+    $("writeBtn").disabled = false;
+  }
+}
+
+function renderLines(lines) {
+  $("scriptEditor").classList.remove("hidden");
+  const box = $("lines");
+  box.innerHTML = "";
+  lines.forEach((ln) => box.appendChild(lineRow(ln)));
+}
+
+function lineRow(ln) {
+  const row = document.createElement("div");
+  row.className = "line-row";
+  row.innerHTML = `
+    <input class="l-speaker" value="${(ln.speaker || "").replace(/"/g, "&quot;")}" />
+    <textarea class="l-text">${(ln.text || "").replace(/</g, "&lt;")}</textarea>
+    <button class="ghost l-remove" title="Remove">✕</button>`;
+  row.querySelector(".l-remove").onclick = () => row.remove();
+  return row;
+}
+
+function readLines() {
+  const out = [];
+  document.querySelectorAll("#lines .line-row").forEach((row) => {
+    out.push({ speaker: row.querySelector(".l-speaker").value.trim(), text: row.querySelector(".l-text").value.trim() });
+  });
+  return out.filter((l) => l.text);
+}
+
+async function speak() {
+  const lines = readLines();
+  if (!lines.length) { setStatus("Write a script first.", "err"); return; }
+  setStatus("Voicing the script…");
+  $("speakBtn").disabled = true;
+  try {
+    const data = await api("/api/audio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lines,
+        format: currentFormat(),
+        writer: currentWriter(),
+        speakers: readSpeakers(),
+        source_text: $("source").value.trim(),
+      }),
+    });
+    CURRENT = { id: data.id, transcript: data.transcript };
+    const src = `/api/episodes/${data.id}/audio` + (TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : "");
+    $("player").src = src;
+    $("result").classList.remove("hidden");
+    setStatus("Episode ready — playing below.", "ok");
+    loadGallery();
+  } catch (e) {
+    setStatus(e.message, "err");
+  } finally {
+    $("speakBtn").disabled = false;
+  }
+}
+
+async function saveCurrent() {
+  if (!CURRENT) return;
+  try {
+    const data = await api(`/api/episodes/${CURRENT.id}/save`, { method: "POST" });
+    setStatus("Saved to " + data.path, "ok");
+    loadGallery();
+  } catch (e) { setStatus(e.message, "err"); }
+}
+
+function downloadCurrent() {
+  if (!CURRENT) return;
+  const url = `/api/episodes/${CURRENT.id}/audio` + (TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : "");
+  const a = document.createElement("a");
+  a.href = url; a.download = "narra-episode.mp3"; a.click();
+}
+
+async function deleteCurrent() {
+  if (!CURRENT) return;
+  try {
+    await api(`/api/episodes/${CURRENT.id}`, { method: "DELETE" });
+    CURRENT = null;
+    $("result").classList.add("hidden");
+    $("player").removeAttribute("src");
+    setStatus("Deleted from the session.", "ok");
+    loadGallery();
+  } catch (e) { setStatus(e.message, "err"); }
+}
+
+async function loadGallery() {
+  try {
+    const data = await api("/api/episodes");
+    const box = $("gallery");
+    box.innerHTML = "";
+    if (!data.episodes.length) { $("galleryMsg").textContent = "Nothing yet — your episodes will appear here."; return; }
+    $("galleryMsg").textContent = "";
+    data.episodes.slice().reverse().forEach((ep) => {
+      const el = document.createElement("div");
+      el.className = "ep";
+      const src = `/api/episodes/${ep.id}/audio` + (TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : "");
+      const when = new Date(ep.created).toLocaleTimeString();
+      el.innerHTML = `
+        <div class="meta">${ep.format} · ${ep.lines} lines · ${when}${ep.saved ? " · saved" : ""}</div>
+        <audio controls src="${src}"></audio>
+        <div class="row" style="margin-top:.4rem">
+          <button class="ghost ep-save">Save</button>
+          <button class="ghost ep-del">Delete</button>
+        </div>`;
+      el.querySelector(".ep-save").onclick = async () => {
+        try { const d = await api(`/api/episodes/${ep.id}/save`, { method: "POST" }); setStatus("Saved to " + d.path, "ok"); loadGallery(); }
+        catch (e) { setStatus(e.message, "err"); }
+      };
+      el.querySelector(".ep-del").onclick = async () => {
+        try { await api(`/api/episodes/${ep.id}`, { method: "DELETE" }); loadGallery(); }
+        catch (e) { setStatus(e.message, "err"); }
+      };
+      box.appendChild(el);
+    });
+  } catch (e) {
+    $("galleryMsg").textContent = e.message;
+  }
+}
+
+// file → text
+$("fileInput").addEventListener("change", async (ev) => {
+  const file = ev.target.files[0];
+  if (!file) return;
+  setStatus("Reading " + file.name + "…");
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const res = await fetch("/api/extract", withToken({ method: "POST", body: fd }));
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || "extract failed");
+    $("source").value = data.text;
+    setStatus(`Loaded ${file.name} (${data.text.length} chars).`, "ok");
+  } catch (e) { setStatus(e.message, "err"); }
+});
+
+// events
+$("writeBtn").onclick = writeScript;
+$("speakBtn").onclick = speak;
+$("saveBtn").onclick = saveCurrent;
+$("downloadBtn").onclick = downloadCurrent;
+$("deleteBtn").onclick = deleteCurrent;
+$("addSpeaker").onclick = () => $("speakers").appendChild(speakerRow({ name: "", persona: "", provider: "edge", voice_id: "" }));
+$("addLine").onclick = () => $("lines").appendChild(lineRow({ speaker: "Alex", text: "" }));
+$("helpBtn").onclick = () => $("help").showModal();
+$("closeHelp").onclick = (e) => { e.preventDefault(); $("help").close(); };
+$("tokenBtn").onclick = () => {
+  TOKEN = $("tokenInput").value.trim();
+  if (TOKEN) localStorage.setItem("narra_token", TOKEN);
+  $("tokenBar").classList.add("hidden");
+  loadConfig();
+};
+
+loadConfig();
+</script>
 </body>
 </html>

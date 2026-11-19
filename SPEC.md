@@ -301,4 +301,8 @@ Narra borrows ideas, with acknowledgment, from:
 - **0.1.0 — M1.** The core runs end to end: source → script → per-line voicing →
   stitched MP3 + JSON sidecar. Writers: `gemini` (v1beta, `gemini-flash-latest`),
   `openai-compatible`, `ollama`. Voices: `edge`, `openai-compatible`, `gemini`.
-  `piper` / `kokoro` remain stubs for M3; `serve` for M2.
+  `piper` / `kokoro` remain stubs for M3.
+- **0.2.0 — M2.** `narra serve`: a single-page web UI with a two-step flow
+  (write script → edit → speak), source paste + txt/pdf upload, format chips,
+  editable speaker strip, in-memory gallery with Save/Download/Delete, and an
+  optional token gate. Same core as the CLI.

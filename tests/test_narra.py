@@ -131,6 +131,116 @@ def test_serve_app():
     assert "Narra" in client.get("/").text
 
 
+# --- M2: web UI ------------------------------------------------------------
+
+
+def _client(config=None, token=None):
+    fastapi_testclient = pytest.importorskip("fastapi.testclient")
+    from narra.serve import create_app
+
+    return fastapi_testclient.TestClient(create_app(config or {}, token=token))
+
+
+def test_config_lists_formats_and_speakers():
+    client = _client({"writer": "gemini", "voice": "edge"})
+    cfg = client.get("/api/config").json()
+    assert {f["key"] for f in cfg["formats"]} >= {"deep-dive", "brief", "critique", "debate"}
+    assert cfg["speakers"][0]["name"] == "Alex"
+    assert "gemini" in cfg["writers"]
+
+
+def test_script_endpoint(monkeypatch):
+    from narra.writers.base import DialogueLine
+
+    monkeypatch.setattr(
+        "narra.serve.outline_to_dialogue",
+        lambda *a, **k: [DialogueLine("Alex", "Hello"), DialogueLine("Sam", "Hi")],
+    )
+    client = _client()
+    res = client.post("/api/script", json={"source_text": "src", "format": "brief"})
+    assert res.status_code == 200
+    body = res.json()
+    assert [ln["speaker"] for ln in body["lines"]] == ["Alex", "Sam"]
+
+
+def test_script_endpoint_surfaces_writer_error(monkeypatch):
+    from narra.writers.base import WriterError
+
+    def boom(*a, **k):
+        raise WriterError("no key")
+
+    monkeypatch.setattr("narra.serve.outline_to_dialogue", boom)
+    client = _client()
+    res = client.post("/api/script", json={"source_text": "src"})
+    assert res.status_code == 400
+    assert "no key" in res.json()["detail"]
+
+
+def test_audio_creates_gallery_episode(monkeypatch):
+    monkeypatch.setattr("narra.core.voice_lines", lambda *a, **k: b"ID3fakeaudio")
+    client = _client()
+    res = client.post(
+        "/api/audio",
+        json={"lines": [{"speaker": "Alex", "text": "Hello"}], "format": "brief"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["audio"]
+    ep_id = data["id"]
+
+    listing = client.get("/api/episodes").json()["episodes"]
+    assert any(e["id"] == ep_id for e in listing)
+
+    audio = client.get(f"/api/episodes/{ep_id}/audio")
+    assert audio.status_code == 200
+    assert audio.content == b"ID3fakeaudio"
+
+    assert client.delete(f"/api/episodes/{ep_id}").status_code == 200
+    assert client.get(f"/api/episodes/{ep_id}/audio").status_code == 404
+
+
+def test_audio_rejects_empty(monkeypatch):
+    client = _client()
+    res = client.post("/api/audio", json={"lines": [{"speaker": "Alex", "text": "  "}]})
+    assert res.status_code == 400
+
+
+def test_save_endpoint(monkeypatch, tmp_path):
+    from narra import core
+
+    monkeypatch.setattr("narra.core.voice_lines", lambda *a, **k: b"ID3x")
+    target = tmp_path / "ep.mp3"
+    target.write_bytes(b"ID3x")
+
+    def fake_save(episode, out=None, out_dir=None):
+        return target, target.with_suffix(".mp3.json")
+
+    monkeypatch.setattr(core, "save_episode", fake_save)
+    client = _client({"serve": {"out_dir": str(tmp_path)}})
+    ep_id = client.post(
+        "/api/audio", json={"lines": [{"speaker": "Alex", "text": "Hi"}]}
+    ).json()["id"]
+    res = client.post(f"/api/episodes/{ep_id}/save")
+    assert res.status_code == 200
+    assert res.json()["path"] == str(target)
+
+
+def test_extract_txt():
+    client = _client()
+    res = client.post(
+        "/api/extract", files={"file": ("a.txt", b"hello world", "text/plain")}
+    )
+    assert res.status_code == 200
+    assert res.json()["text"] == "hello world"
+
+
+def test_token_guard():
+    client = _client({}, token="s3cret")
+    assert client.get("/api/config").status_code == 401
+    assert client.get("/api/config", headers={"X-Narra-Token": "s3cret"}).status_code == 200
+    assert client.get("/api/config?token=s3cret").status_code == 200
+
+
 # --- M1: writer helpers ------------------------------------------------------
 
 

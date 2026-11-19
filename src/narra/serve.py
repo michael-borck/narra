@@ -1,23 +1,62 @@
-"""Narra web UI: a single page (source -> format -> speakers -> episode).
+"""Narra web UI: a single page (source -> script -> preview/edit -> episode).
 
-Skeleton in 0.0.1: the app serves a placeholder page and a health endpoint. The
-full flow (source box, format chips, speaker strip, preview/edit, session
-gallery) lands in M2. Requires the [serve] extra.
+The flow is two-step so the user can edit the script before spending any TTS:
+
+1. ``POST /api/script`` — write a script from a source.
+2. ``POST /api/audio``  — voice an (edited) script into an episode.
+
+The session gallery lives in memory only; nothing touches disk until Save.
+Requires the [serve] extra.
 """
 
 from __future__ import annotations
 
+import base64
+import os
+import tempfile
+import threading
+import uuid
+from collections import OrderedDict
 from importlib import resources
+from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from pydantic import BaseModel
 
-from narra import __version__
+from narra import __version__, core
+from narra.formats import format_options, format_prompt, get_format
+from narra.script import outline_to_dialogue, read_source
+from narra.speakers import resolve_speakers
+from narra.writers.base import DialogueLine, WriterError
+
+#: In-memory session gallery cap (privacy: it dies with the process).
+MAX_EPISODES = 50
+
+#: Which env vars make a provider usable (reported to the UI).
+_PROVIDER_ENV = {
+    "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    "openai-compatible": ("OPENAI_API_KEY", "OPENAI_BASE_URL"),
+}
+
+
+class ScriptBody(BaseModel):
+    source_text: str
+    format: str = "deep-dive"
+    writer: str | None = None
+    speakers: list[dict[str, Any]] | None = None
+
+
+class AudioBody(BaseModel):
+    lines: list[dict[str, str]]
+    format: str = "deep-dive"
+    writer: str | None = None
+    speakers: list[dict[str, Any]] | None = None
+    source_text: str = ""
 
 
 def _page_html() -> str:
-    """Read the bundled single-page UI (no CDNs)."""
     return (
         resources.files("narra")
         .joinpath("serve_page.html")
@@ -25,10 +64,35 @@ def _page_html() -> str:
     )
 
 
-def create_app(config: dict[str, Any] | None = None) -> FastAPI:
-    """Build the FastAPI app for the web UI."""
+def _error_detail(exc: Exception) -> str:
+    return str(exc)
+
+
+def create_app(config: dict[str, Any] | None = None, token: str | None = None) -> FastAPI:
+    """Build the FastAPI app for the web UI.
+
+    ``token`` gates the API when set (an empty token leaves it open, for
+    localhost). The gallery is held in memory and capped at MAX_EPISODES.
+    """
     settings = config or {}
     app = FastAPI(title="Narra", version=__version__)
+    episodes: OrderedDict[str, core.Episode] = OrderedDict()
+    saved_ids: set[str] = set()
+    lock = threading.Lock()
+
+    def guard(
+        request: Request,
+        x_narra_token: str | None = Header(default=None),
+    ) -> None:
+        if not token:
+            return
+        supplied = (
+            x_narra_token
+            or request.query_params.get("token")
+            or request.cookies.get("narra_token")
+        )
+        if supplied != token:
+            raise HTTPException(status_code=401, detail="Invalid or missing token.")
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
@@ -46,5 +110,164 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
                 "format": settings.get("format"),
             }
         )
+
+    @app.get("/api/config", dependencies=[Depends(guard)])
+    def get_config() -> JSONResponse:
+        speakers = resolve_speakers(settings.get("speakers"))
+        writers = ["gemini", "openai-compatible", "ollama"]
+        voices = ["edge", "openai", "openai-compatible", "gemini", "piper", "kokoro"]
+        available = {
+            name: any(os.getenv(var) for var in envs)
+            for name, envs in _PROVIDER_ENV.items()
+        }
+        return JSONResponse(
+            {
+                "version": __version__,
+                "requires_token": bool(token),
+                "writer": settings.get("writer") or "gemini",
+                "voice": settings.get("voice") or "edge",
+                "format": settings.get("format") or "deep-dive",
+                "formats": format_options(),
+                "writers": writers,
+                "voices": voices,
+                "providers_available": available,
+                "speakers": [
+                    {
+                        "name": s.name,
+                        "persona": s.persona,
+                        "provider": s.provider,
+                        "voice_id": s.voice_id,
+                        "model": s.model,
+                    }
+                    for s in speakers
+                ],
+            }
+        )
+
+    @app.post("/api/extract", dependencies=[Depends(guard)])
+    async def extract(file: UploadFile = File(...)) -> JSONResponse:
+        data = await file.read()
+        with tempfile.NamedTemporaryFile(
+            suffix=Path(file.filename or "upload.txt").suffix, delete=False
+        ) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+        try:
+            text = read_source(tmp_path)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=_error_detail(e)) from e
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+        return JSONResponse({"text": text, "name": file.filename})
+
+    @app.post("/api/script", dependencies=[Depends(guard)])
+    def make_script(body: ScriptBody) -> JSONResponse:
+        fmt = get_format(body.format)
+        writer_name = body.writer or str(settings.get("writer") or "gemini")
+        speakers = resolve_speakers(body.speakers or settings.get("speakers"))
+        try:
+            lines = outline_to_dialogue(
+                body.source_text,
+                format_prompt(fmt.key),
+                writer_name,
+                settings,
+                speakers=speakers,
+            )
+        except WriterError as e:
+            raise HTTPException(status_code=400, detail=_error_detail(e)) from e
+        return JSONResponse(
+            {
+                "format": fmt.key,
+                "writer": writer_name,
+                "lines": [{"speaker": ln.speaker, "text": ln.text} for ln in lines],
+            }
+        )
+
+    @app.post("/api/audio", dependencies=[Depends(guard)])
+    def make_audio(body: AudioBody) -> JSONResponse:
+        lines = [DialogueLine(speaker=ln.get("speaker", ""), text=ln.get("text", "")) for ln in body.lines]
+        lines = [ln for ln in lines if ln.text.strip()]
+        if not lines:
+            raise HTTPException(status_code=400, detail="No dialogue lines to speak.")
+        speakers = resolve_speakers(body.speakers or settings.get("speakers"))
+        fmt = get_format(body.format)
+        writer_name = body.writer or str(settings.get("writer") or "gemini")
+        try:
+            audio = core.voice_lines(lines, speakers, settings)
+        except core.GenerationError as e:
+            raise HTTPException(status_code=400, detail=_error_detail(e)) from e
+        except Exception as e:  # noqa: BLE001 - surface provider errors to the UI
+            raise HTTPException(status_code=400, detail=_error_detail(e)) from e
+
+        episode = core.Episode(
+            lines=lines,
+            audio=audio,
+            source=body.source_text,
+            source_path="(web)",
+            format=fmt.key,
+            writer=writer_name,
+            voices=[s.voice_ref() for s in speakers],
+        )
+        episode_id = uuid.uuid4().hex[:12]
+        with lock:
+            episodes[episode_id] = episode
+            while len(episodes) > MAX_EPISODES:
+                episodes.popitem(last=False)
+        return JSONResponse(
+            {
+                "id": episode_id,
+                "mime": "audio/mpeg",
+                "transcript": "\n\n".join(ln.text for ln in lines),
+                "audio": base64.b64encode(audio).decode("ascii"),
+            }
+        )
+
+    @app.get("/api/episodes", dependencies=[Depends(guard)])
+    def list_episodes() -> JSONResponse:
+        with lock:
+            items = [
+                {
+                    "id": eid,
+                    "format": ep.format,
+                    "writer": ep.writer,
+                    "lines": len(ep.lines),
+                    "created": ep.created,
+                    "saved": eid in saved_ids,
+                }
+                for eid, ep in episodes.items()
+            ]
+        return JSONResponse({"episodes": items})
+
+    @app.get("/api/episodes/{episode_id}/audio", dependencies=[Depends(guard)])
+    def episode_audio(episode_id: str) -> Response:
+        with lock:
+            episode = episodes.get(episode_id)
+        if episode is None:
+            raise HTTPException(status_code=404, detail="Episode not found.")
+        return Response(content=episode.audio, media_type="audio/mpeg")
+
+    @app.delete("/api/episodes/{episode_id}", dependencies=[Depends(guard)])
+    def delete_episode(episode_id: str) -> JSONResponse:
+        with lock:
+            existed = episodes.pop(episode_id, None) is not None
+        if not existed:
+            raise HTTPException(status_code=404, detail="Episode not found.")
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/episodes/{episode_id}/save", dependencies=[Depends(guard)])
+    def save_episode(episode_id: str) -> JSONResponse:
+        serve_cfg = settings.get("serve") or {}
+        out_dir = str(serve_cfg.get("out_dir") or "~/Podcasts/Narra")
+        with lock:
+            episode = episodes.get(episode_id)
+        if episode is None:
+            raise HTTPException(status_code=404, detail="Episode not found.")
+        try:
+            audio_path, _ = core.save_episode(episode, out_dir=out_dir)
+        except core.GenerationError as e:
+            raise HTTPException(status_code=400, detail=_error_detail(e)) from e
+        with lock:
+            saved_ids.add(episode_id)
+        return JSONResponse({"ok": True, "path": str(audio_path)})
 
     return app
