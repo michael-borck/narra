@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 import narra
@@ -20,7 +22,7 @@ from narra.writers.base import WriterError
 
 
 def test_version():
-    assert narra.__version__ == "0.0.1"
+    assert re.match(r"^\d+\.\d+\.\d+", narra.__version__)
 
 
 def test_formats_registry():
@@ -94,13 +96,15 @@ def test_read_source_txt(tmp_path):
         read_source(str(tmp_path / "missing.txt"))
 
 
-def test_generate_fails_cleanly_on_stub_writer(tmp_path):
+def test_generate_fails_cleanly_without_key(tmp_path, monkeypatch):
+    for var in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY", "OPENAI_BASE_URL"):
+        monkeypatch.delenv(var, raising=False)
     src = tmp_path / "a.txt"
     src.write_text("Some source text about a topic.", encoding="utf-8")
     settings = load_config()
     with pytest.raises(core.GenerationError) as exc:
-        core.generate(str(src), settings)
-    assert "not implemented" in str(exc.value).lower()
+        core.generate(str(src), settings, writer="gemini")
+    assert "api key" in str(exc.value).lower()
 
 
 def test_slugify():
@@ -124,3 +128,146 @@ def test_serve_app():
     client = fastapi_testclient.TestClient(create_app({"writer": "gemini"}))
     assert client.get("/api/health").json()["ok"] is True
     assert "Narra" in client.get("/").text
+
+
+# --- M1: writer helpers ------------------------------------------------------
+
+
+def test_parse_lines_accepts_shapes():
+    from narra.writers.base import parse_lines
+
+    as_list = parse_lines([{"speaker": "Alex", "text": "Hi"}])
+    assert as_list[0].speaker == "Alex"
+
+    as_script = parse_lines({"podcast_script": [{"speaker": "Sam", "text": "Yo"}]})
+    assert as_script[0].text == "Yo"
+
+    as_pairs = parse_lines([["Alex", "Pair form"]])
+    assert as_pairs[0].text == "Pair form"
+
+
+def test_parse_lines_rejects_empty():
+    from narra.writers.base import WriterError, parse_lines
+
+    with pytest.raises(WriterError):
+        parse_lines({"lines": []})
+    with pytest.raises(WriterError):
+        parse_lines("not json")
+
+
+def test_render_prompt_includes_source_and_speakers():
+    from narra.speakers import Speaker
+    from narra.writers.base import ScriptRequest, render_prompt
+
+    request = ScriptRequest(
+        source_text="The source body.",
+        format_instruction="Be brief.",
+        speakers=[Speaker(name="Ana", persona="Curious.")],
+    )
+    prompt = render_prompt(request)
+    assert "The source body." in prompt
+    assert "Be brief." in prompt
+    assert "Ana" in prompt
+
+
+# --- M1: openai-compatible writer + voice (mocked HTTP) ----------------------
+
+
+class _FakeResponse:
+    def __init__(self, *, ok=True, payload=None, content=b"", status=200, text=""):
+        self.ok = ok
+        self._payload = payload or {}
+        self.content = content
+        self.status_code = status
+        self.text = text
+
+    def json(self):
+        return self._payload
+
+
+def test_openai_writer_parses_response(monkeypatch):
+    import narra.writers.openai_compatible as mod
+
+    payload = {
+        "choices": [
+            {"message": {"content": '{"lines": [{"speaker": "Alex", "text": "Hello"}]}'}}
+        ]
+    }
+    monkeypatch.setattr(mod.requests, "post", lambda *a, **k: _FakeResponse(payload=payload))
+
+    writer = mod.OpenAICompatibleWriter()
+    result = writer.write(
+        mod.ScriptRequest(
+            source_text="src",
+            format_instruction="fmt",
+            base_url="http://x.local/v1",
+            model="m",
+        )
+    )
+    assert result.lines[0].text == "Hello"
+
+
+def test_openai_writer_requires_base_url():
+    import narra.writers.openai_compatible as mod
+    from narra.writers.base import WriterError
+
+    writer = mod.OpenAICompatibleWriter()
+    with pytest.raises(WriterError):
+        writer.write(mod.ScriptRequest(source_text="s", format_instruction="f"))
+
+
+def test_openai_voice_returns_bytes(monkeypatch):
+    import narra.tts.openai_compat as mod
+
+    monkeypatch.setattr(
+        mod.requests, "post", lambda *a, **k: _FakeResponse(content=b"ID3fake")
+    )
+    voice = mod.OpenAICompatibleVoice()
+    result = voice.synthesize(
+        mod.SpeakRequest(text="hi", base_url="http://x.local/v1", voice_id="alloy")
+    )
+    assert result.data == b"ID3fake"
+
+
+# --- M1: core voicing + stitching -------------------------------------------
+
+
+def test_voice_lines_stitches_and_maps_speakers(monkeypatch):
+    pytest.importorskip("pydub")
+    import io
+
+    from pydub import AudioSegment
+
+    import narra.tts as tts
+    from narra.speakers import Speaker
+    from narra.tts.base import SpeakRequest, SpeakResult
+    from narra.writers.base import DialogueLine
+
+    wav = io.BytesIO()
+    AudioSegment.silent(duration=150).export(wav, format="wav")
+    wav_bytes = wav.getvalue()
+
+    seen: list[str] = []
+
+    class FakeVoice:
+        name = "fake"
+
+        def synthesize(self, request: SpeakRequest) -> SpeakResult:
+            seen.append(request.voice_id)
+            return SpeakResult(data=wav_bytes, response_format="wav")
+
+    monkeypatch.setattr(tts, "get_voice", lambda name: FakeVoice())
+
+    speakers = [
+        Speaker(name="Alex", voice_id="en-US-AndrewNeural"),
+        Speaker(name="Sam", voice_id="en-US-AvaNeural"),
+    ]
+    lines = [
+        DialogueLine(speaker="Alex", text="One"),
+        DialogueLine(speaker="Sam", text="Two"),
+        DialogueLine(speaker="Alex", text="Three"),
+    ]
+    audio = core.voice_lines(lines, speakers, load_config())
+
+    assert audio[:3] == b"ID3" or audio[:2] in (b"\xff\xfb", b"\xff\xf3")
+    assert seen == ["en-US-AndrewNeural", "en-US-AvaNeural", "en-US-AndrewNeural"]

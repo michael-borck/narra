@@ -6,6 +6,8 @@ failure — Narra fails loudly rather than dropping a line silently.
 
 from __future__ import annotations
 
+import io
+import wave
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
@@ -13,6 +15,26 @@ from typing import Any
 
 class VoiceError(Exception):
     """Raised when a voice provider cannot synthesize audio."""
+
+
+def wrap_pcm_wav(
+    pcm: bytes,
+    sample_rate: int = 24000,
+    sample_width: int = 2,
+    channels: int = 1,
+) -> bytes:
+    """Wrap raw little-endian PCM in a WAV container.
+
+    Gemini TTS returns headerless 24 kHz, 16-bit mono PCM; wrapping it here
+    lets the core treat every provider's output the same way.
+    """
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(channels)
+        wav.setsampwidth(sample_width)
+        wav.setframerate(sample_rate)
+        wav.writeframes(pcm)
+    return buffer.getvalue()
 
 
 @dataclass

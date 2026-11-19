@@ -127,7 +127,7 @@ A format may also be a **custom briefing** (free text) for open-notebook-style
 
 | Name | What | Auth |
 |---|---|---|
-| `gemini` | Google Gemini (`google-genai`), default `gemini-3.5-flash` | `GEMINI_API_KEY` |
+| `gemini` | Google Gemini (`google-genai`), default `gemini-flash-latest` | `GEMINI_API_KEY` |
 | `openai-compatible` | Any `/v1/chat/completions`: OpenAI, LM Studio, llama.cpp, OpenRouter | Bearer key (optional locally) |
 | `ollama` | Local Ollama chat model | none |
 
@@ -293,9 +293,12 @@ Narra borrows ideas, with acknowledgment, from:
 4. **M4 — Desktop + landing.** Tauri shell, first-run uv runtime, Settings
    sheet, CI installers, demo mode, landing page.
 
-## 11. Skeleton (0.0.1)
+## 11. Release notes
 
-The first PyPI upload is a frame, not a product: it installs, imports,
-`narra --version` and `narra init-config` work, and every provider plus
-`generate()` raise a clear "not implemented yet" error. This exists so the
-package name, repo, CI, and packaging are proven before M1 fills the modules.
+- **0.0.1 — skeleton.** The frame: installs, imports, `narra --version` /
+  `init-config` work, providers and `generate()` stubbed. Proved the name, repo,
+  CI, and packaging.
+- **0.1.0 — M1.** The core runs end to end: source → script → per-line voicing →
+  stitched MP3 + JSON sidecar. Writers: `gemini` (v1beta, `gemini-flash-latest`),
+  `openai-compatible`, `ollama`. Voices: `edge`, `openai-compatible`, `gemini`.
+  `piper` / `kokoro` remain stubs for M3; `serve` for M2.

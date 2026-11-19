@@ -10,8 +10,8 @@ telemetry, bring your own providers.
 ## Install
 
 ```bash
-pip install "narra[edge,audio]"     # core + free edge-tts voice + pydub
-export GEMINI_API_KEY=...           # default writer
+pip install "narra[gemini,edge,audio]"   # writer + free voice + stitching
+export GEMINI_API_KEY=...                # default writer
 ```
 
 ## Use
@@ -45,9 +45,11 @@ Keys live in `~/.narra.yaml` (or `${VAR}` references), never in the browser.
 
 ## Status
 
-**0.0.1 — skeleton.** The package installs, imports, and `narra --version` works;
-providers and `narra generate` are stubbed and raise "not implemented yet". See
-`SPEC.md` for the full design and milestones.
+**0.1.0 — M1.** The core runs end to end: source → script (Gemini or a
+BYOK/OpenAI-compatible/Ollama writer) → per-line voicing (edge, OpenAI-compatible
+speech, or Gemini) → stitched MP3 + JSON sidecar. `serve` (M2), Piper/Kokoro
+(M3), and the desktop app (M4) are still to come. See `SPEC.md` for the full
+design and milestones.
 
 ## Privacy
 

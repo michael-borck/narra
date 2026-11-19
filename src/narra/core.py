@@ -1,14 +1,18 @@
 """Core: turn a source document into a podcast episode on disk.
 
-``generate`` is a skeleton in 0.0.1: it reads the source, resolves the format
-and speakers, and then hands off to a writer + voice, which raise "not
-implemented yet" until M1/M3. The save + JSON sidecar helpers are real.
+The pipeline: read source → write a script with the chosen writer → voice each
+line with its speaker's provider → stitch the clips into one MP3 → save with a
+JSON sidecar. Per-line voicing keeps the provider abstraction uniform; a
+single-call provider (Gemini multi-speaker) can be added later without changing
+this shape.
 """
 
 from __future__ import annotations
 
 import hashlib
+import io
 import json
+import random
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -17,10 +21,12 @@ from typing import Any
 
 from narra.formats import format_prompt, get_format
 from narra.script import clean_lines, read_source, script_text
-from narra.speakers import resolve_speakers
+from narra.speakers import Speaker, resolve_speakers
 from narra.writers.base import DialogueLine, WriterError
 
-_AUDIO_SUFFIXES = {".mp3", ".wav", ".flac", ".ogg", ".m4a"}
+#: Pause between lines, in milliseconds (matches the original script).
+PAUSE_MIN_MS = 180
+PAUSE_MAX_MS = 420
 
 
 @dataclass
@@ -47,16 +53,22 @@ def generate(
     *,
     format: str | None = None,
     writer: str | None = None,
+    voice: str | None = None,
+    on_progress: Any = None,
 ) -> Episode:
     """Generate one episode from a source file.
 
-    Skeleton: reads the source and resolves everything, then calls the writer
-    (which raises a clear "not implemented yet" error until M1). Voicing and
-    stitching land in M1/M3.
+    ``voice`` overrides every line's provider (otherwise each speaker uses the
+    provider on its profile). ``on_progress`` is an optional callable that
+    receives short status strings, used by the CLI and (later) the web UI.
     """
     chosen_format = format or str(settings.get("format") or "deep-dive")
     fmt = get_format(chosen_format)
     chosen_writer = writer or str(settings.get("writer") or "gemini")
+
+    def progress(message: str) -> None:
+        if on_progress:
+            on_progress(message)
 
     try:
         text = read_source(source_path)
@@ -65,21 +77,106 @@ def generate(
 
     from narra.script import outline_to_dialogue
 
+    speakers = resolve_speakers(settings.get("speakers"))
+    progress(f"Writing a '{fmt.key}' script with {chosen_writer}…")
     try:
-        lines = outline_to_dialogue(text, format_prompt(fmt.key), chosen_writer, settings)
+        lines = outline_to_dialogue(
+            text, format_prompt(fmt.key), chosen_writer, settings, speakers=speakers
+        )
     except WriterError as e:
         raise GenerationError(str(e)) from e
 
+    lines = clean_lines(lines)
+    if not lines:
+        raise GenerationError("The writer produced no usable dialogue lines.")
+
+    progress(f"Voicing {len(lines)} lines…")
+    try:
+        audio = voice_lines(lines, speakers, settings, voice_override=voice, on_progress=progress)
+    except GenerationError:
+        raise
+    except Exception as e:
+        raise GenerationError(f"Voicing failed: {e}") from e
+
     return Episode(
-        lines=clean_lines(lines),
-        audio=b"",
+        lines=lines,
+        audio=audio,
         source=text,
         source_path=source_path,
         format=fmt.key,
         writer=chosen_writer,
-        voices=[s.voice_ref() for s in resolve_speakers(settings.get("speakers"))],
+        voices=[s.voice_ref() for s in speakers],
         created=datetime.now(timezone.utc).isoformat(),
     )
+
+
+def _speaker_for(line: DialogueLine, speakers: list[Speaker], index: int) -> Speaker:
+    """Pick the speaker profile for a line, tolerating unknown names."""
+    by_name = {s.name.lower(): s for s in speakers}
+    match = by_name.get(line.speaker.strip().lower())
+    if match:
+        return match
+    if speakers:
+        return speakers[index % len(speakers)]
+    return Speaker(name=line.speaker or "Speaker")
+
+
+def voice_lines(
+    lines: list[DialogueLine],
+    speakers: list[Speaker],
+    settings: dict[str, Any],
+    *,
+    voice_override: str | None = None,
+    on_progress: Any = None,
+) -> bytes:
+    """Synthesize every line and stitch the clips into one MP3."""
+    try:
+        from pydub import AudioSegment
+    except ImportError as e:
+        raise GenerationError(
+            "Stitching audio needs pydub (and ffmpeg on PATH). Install with:\n"
+            "  pip install \"narra[audio]\""
+        ) from e
+
+    from narra.config import voice_settings
+    from narra.tts import get_voice
+    from narra.tts.base import SpeakRequest, SpeakResult
+
+    providers: dict[str, Any] = {}
+    combined = AudioSegment.empty()
+
+    for index, line in enumerate(lines):
+        speaker = _speaker_for(line, speakers, index)
+        provider_name = voice_override or speaker.provider or "edge"
+        provider = providers.get(provider_name)
+        if provider is None:
+            provider = get_voice(provider_name)
+            providers[provider_name] = provider
+
+        vset = voice_settings(settings, provider_name)
+        request = SpeakRequest(
+            text=line.text,
+            voice_id=speaker.voice_id,
+            model=speaker.model or vset.get("model"),
+            base_url=vset.get("base_url"),
+            api_key=vset.get("api_key"),
+            timeout=float(vset.get("timeout") or 120),
+        )
+        if on_progress:
+            on_progress(f"  line {index + 1}/{len(lines)} [{speaker.name} → {provider_name}]")
+        result = provider.synthesize(request)
+        assert isinstance(result, SpeakResult)
+        clip = AudioSegment.from_file(io.BytesIO(result.data), format=result.response_format)
+        combined += clip
+
+        if index < len(lines) - 1:
+            combined += AudioSegment.silent(
+                duration=random.randint(PAUSE_MIN_MS, PAUSE_MAX_MS)
+            )
+
+    buffer = io.BytesIO()
+    combined.export(buffer, format="mp3")
+    return buffer.getvalue()
 
 
 def slugify(text: str, max_length: int = 48) -> str:
@@ -140,10 +237,7 @@ def save_episode(
     default). Existing files are never overwritten.
     """
     if not episode.audio:
-        raise GenerationError(
-            "Episode has no audio yet — voicing is not implemented in the "
-            "0.0.1 skeleton. See SPEC.md §10 M1."
-        )
+        raise GenerationError("Episode has no audio.")
 
     if out:
         target = Path(out).expanduser()

@@ -175,7 +175,7 @@ format: deep-dive              # deep-dive | brief | critique | debate | <custom
 
 writers:
   gemini:
-    model: gemini-3.5-flash
+    model: gemini-flash-latest
     # api_key: "${GEMINI_API_KEY}"   # defaults to the env var anyway
 
   openai-compatible:           # LocalAI, LM Studio, llama.cpp, OpenRouter, OpenAI

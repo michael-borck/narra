@@ -143,8 +143,15 @@ def generate(
     settings = _apply_overrides(
         _load(config), writer, voice, format, model, base_url, api_key
     )
+
+    def progress(message: str) -> None:
+        console.print(f"  {message}")
+
     try:
-        episode = _generate(source, settings, format=format, writer=writer)
+        episode = _generate(
+            source, settings, format=format, writer=writer, voice=voice,
+            on_progress=progress,
+        )
     except GenerationError as e:
         err_console.print(str(e))
         raise typer.Exit(code=1) from e

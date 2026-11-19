@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "narra"
-version = "0.0.1"
+version = "0.1.0"
 description = "A small, privacy-first source-to-podcast tool: a PDF or text file in, a multi-speaker episode out. Bring your own writer and voice."
 readme = "README.md"
 license = { text = "MIT" }
@@ -21,7 +21,7 @@ keywords = [
     "notebooklm",
 ]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
@@ -45,7 +45,10 @@ dependencies = [
 
 [project.optional-dependencies]
 # Audio stitching (pydub needs ffmpeg on PATH at runtime).
-audio = ["pydub>=0.25.1"]
+audio = [
+    "pydub>=0.25.1",
+    "audioop-lts>=0.2.1; python_version >= '3.13'",
+]
 # Free edge-tts voice.
 edge = ["edge-tts>=6.1.0"]
 # Gemini writer + native TTS.
@@ -146,12 +149,16 @@ branch = true
 dev = [
     "basedpyright>=1.29.4",
     "build>=1.2.2",
+    "edge-tts>=6.1.0",
     "fastapi>=0.110.0",
+    "google-genai>=0.3.0",
     "httpx>=0.27.0",
+    "pydub>=0.25.1",
+    "audioop-lts>=0.2.1; python_version >= '3.13'",
+    "pypdf>=4.0.0",
     "pytest>=8.4.0",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.14.0",
-    "pypdf>=4.0.0",
     "ruff>=0.12.0",
     "twine>=6.1.0",
     "uvicorn>=0.29.0",

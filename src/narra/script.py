@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from narra.speakers import Speaker
 from narra.writers.base import DialogueLine
 
 
@@ -65,11 +66,12 @@ def outline_to_dialogue(
     format_instruction: str,
     writer_name: str,
     settings: dict[str, object],
+    speakers: list[Speaker] | None = None,
 ) -> list[DialogueLine]:
     """Generate dialogue from a source using the chosen writer.
 
-    Skeleton: resolves the writer and delegates. The writer raises a clear
-    "not implemented yet" error until M1 lands.
+    ``speakers`` are passed through so the writer can use their names and
+    personas; when omitted, they are resolved from the config.
     """
     from narra.config import writer_settings
     from narra.speakers import resolve_speakers
@@ -77,11 +79,14 @@ def outline_to_dialogue(
     from narra.writers.base import ScriptRequest
 
     effective = writer_settings(settings, writer_name)  # type: ignore[arg-type]
+    resolved = speakers if speakers is not None else resolve_speakers(
+        settings.get("speakers")  # type: ignore[union-attr]
+    )
     writer = get_writer(writer_name)
     request = ScriptRequest(
         source_text=source_text[:50000],
         format_instruction=format_instruction,
-        speakers=resolve_speakers(effective.get("speakers")),  # type: ignore[arg-type]
+        speakers=resolved,
         model=effective.get("model"),
         base_url=effective.get("base_url"),
         api_key=effective.get("api_key"),

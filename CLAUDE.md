@@ -16,16 +16,24 @@ Two provider abstractions, chosen independently:
   (`/v1/audio/speech`), `gemini` (native), `piper` (local CPU), `kokoro`
   (local CPU / Speaches)
 
-## Status (0.0.1 — skeleton)
+## Status (0.1.0 — M1)
 
-- Package frame only: installs, imports, `narra --version` / `narra --help` /
-  `narra init-config` work.
-- `config.py` (layered, `${VAR}`), `formats.py`, `speakers.py`, `script.py`
-  (read_source only) are real.
-- Every writer, every voice, `core.generate()`, and `serve` are **stubs** that
-  raise `NotImplementedError` with a TODO.
+- **M1 done:** `narra "source.pdf" --format ... --out ...` runs end to end.
+  - Writers: `gemini` (default, `gemini-flash-latest`, v1beta), `openai-compatible`
+    (BYOK `/v1/chat/completions`, JSON), `ollama` (`/api/chat` + JSON schema).
+  - Voices: `edge` (free default), `openai-compatible` (`/v1/audio/speech`),
+    `gemini` (native TTS, 24 kHz PCM wrapped to WAV). `piper` + `kokoro` are
+    still stubs (M3).
+  - `core.generate()`: read source → writer → per-line voicing → pydub stitch
+    (180–420 ms pauses) → MP3 + JSON sidecar. `--voice` overrides all lines;
+    per-speaker providers come from `speakers:` profiles.
+- **Live-verified:** Gemini writer + edge voice (7-line brief, 71 s), Gemini
+  writer + Gemini voice (3-line two-speaker, Fenrir/Leda), stitching + mp3.
+- **Not live-verified:** OpenAI-compatible writer/voice — the available key has
+  no credits (429); the error path is clean and the code is unit-tested with
+  mocked HTTP. Ollama not run (no local server here).
+- **Still skeleton:** `serve` (M2), `piper`/`kokoro` (M3), desktop (M4).
 - No infographic / show-notes card — that is a separate tool.
-- Next: M1 (see SPEC §10).
 
 ## Local commands
 
@@ -41,7 +49,7 @@ uv run --no-sync pytest
 
 ```bash
 uv build
-twine upload dist/narra-0.0.1*     # uses ~/.pypirc
+twine upload dist/narra-0.1.0*     # uses ~/.pypirc
 ```
 
 CI `publish.yml` also builds on `v*` tags via `pypa/gh-action-pypi-publish`, but
