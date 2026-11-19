@@ -145,8 +145,8 @@ Shipped:
 | `edge` | edge-tts neural voices, free | none (default) |
 | `openai` / `openai-compatible` | OpenAI standard `POST {base}/audio/speech` (`model`, `input`, `voice`, `response_format`, `speed`) | Bearer key (optional for local Speaches/LocalAI) |
 | `gemini` | Gemini native TTS (single- or multi-speaker), 24 kHz PCM | `GEMINI_API_KEY` |
-| `piper` | Local CPU, tiny ONNX voices, ~0.05× realtime | sha256-verified first-run download |
-| `kokoro` | Local CPU via `kokoro-onnx` (~120 MB), or a Speaches server | local or server URL |
+| `piper` | Local CPU, tiny ONNX voices, ~0.05× realtime | sha256-verified first-run download (no Python deps) |
+| `kokoro` | Local CPU via `kokoro-onnx` (~120 MB), or a Speaches server | `pip install "narra[local]"` |
 
 Two concatenation strategies must be supported: **per-line** (edge, piper,
 kokoro, openai-compatible — synthesize each line, stitch with 180–420 ms pauses)
@@ -306,3 +306,7 @@ Narra borrows ideas, with acknowledgment, from:
   (write script → edit → speak), source paste + txt/pdf upload, format chips,
   editable speaker strip, in-memory gallery with Save/Download/Delete, and an
   optional token gate. Same core as the CLI.
+- **0.3.0 — M3.** Local CPU voices. `piper` (managed runtime + sha256-pinned
+  voices, no Python deps) and `kokoro` (`kokoro-onnx`). Per-speaker voice
+  overrides (any speaker can use any provider). `narra compare` writes one MP3
+  per voice from a single script.

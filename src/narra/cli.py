@@ -168,6 +168,83 @@ def generate(
 
 
 @app.command()
+def compare(
+    source: str = typer.Argument(..., help="Path to a .pdf or .txt source file."),
+    voice: list[str] | None = typer.Option(
+        None, "--voice", "-v", help="Voice provider to compare (repeatable)."
+    ),
+    format: str | None = typer.Option(None, "--format", "-f", help="Script format."),
+    writer: str | None = typer.Option(None, "--writer", "-w", help="Script writer."),
+    model: str | None = typer.Option(None, "--model", "-m", help="Writer model."),
+    out_dir: str | None = typer.Option(
+        None, "--out-dir", help="Directory for the compared episodes."
+    ),
+    config: str | None = typer.Option(None, "--config", "-c", help="Config file."),
+) -> None:
+    """A/B two or more voices on the same script (writes one MP3 per voice)."""
+    from pathlib import Path
+
+    from narra.core import (
+        Episode,
+        GenerationError,
+        save_episode,
+        slugify,
+        unique_path,
+        voice_lines,
+    )
+    from narra.formats import format_prompt, get_format
+    from narra.script import outline_to_dialogue, read_source
+    from narra.speakers import resolve_speakers
+    from narra.writers.base import WriterError
+
+    voices = voice or ["edge", "gemini"]
+    settings = _apply_overrides(
+        _load(config), writer, None, format, model, None, None
+    )
+    chosen_format = format or str(settings.get("format") or "deep-dive")
+    fmt = get_format(chosen_format)
+    chosen_writer = writer or str(settings.get("writer") or "gemini")
+    speakers = resolve_speakers(settings.get("speakers"))
+
+    try:
+        text = read_source(source)
+    except Exception as e:
+        err_console.print(str(e))
+        raise typer.Exit(code=1) from e
+
+    console.print(f"Writing a '{fmt.key}' script with {chosen_writer}…")
+    try:
+        lines = outline_to_dialogue(
+            text, format_prompt(fmt.key), chosen_writer, settings, speakers=speakers
+        )
+    except WriterError as e:
+        err_console.print(str(e))
+        raise typer.Exit(code=1) from e
+
+    base_dir = Path(out_dir).expanduser() if out_dir else Path(".")
+    for provider in voices:
+        console.print(f"Voicing with {provider}…")
+        try:
+            audio = voice_lines(lines, speakers, settings, voice_override=provider)
+            episode = Episode(
+                lines=lines,
+                audio=audio,
+                source=text,
+                source_path=source,
+                format=fmt.key,
+                writer=chosen_writer,
+                voices=[s.voice_ref() for s in speakers],
+            )
+            stem = slugify(f"{Path(source).stem} {fmt.key} {provider}")
+            target = unique_path(base_dir / f"{stem}.mp3")
+            audio_path, _ = save_episode(episode, out=str(target))
+        except GenerationError as e:
+            err_console.print(f"{provider}: {e}")
+            continue
+        console.print(f"  {provider}: {audio_path}")
+
+
+@app.command()
 def serve(
     host: str | None = typer.Option(None, "--host", help="Bind host."),
     port: int | None = typer.Option(None, "--port", "-p", help="Bind port."),

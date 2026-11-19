@@ -241,6 +241,116 @@ def test_token_guard():
     assert client.get("/api/config?token=s3cret").status_code == 200
 
 
+# --- M3: local voices + compare --------------------------------------------
+
+
+def test_piper_resolve_voice():
+    from narra.tts.piper import PiperVoice
+
+    voice = PiperVoice()
+    assert voice._resolve_voice("en_GB-alan-low") == "en_GB-alan-low"
+    # an edge-style name falls back to a real piper voice
+    assert voice._resolve_voice("en-US-AndrewNeural") == PiperVoice.default_voice
+
+
+def test_piper_synthesize_mocked(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    import narra.tts.piper as piper_mod
+
+    monkeypatch.setattr(piper_mod, "_ensure_runtime", lambda base: (tmp_path / "piper", tmp_path / "lib"))
+    monkeypatch.setattr(piper_mod, "_ensure_voice", lambda base, name: (tmp_path / "v.onnx", 22050))
+    monkeypatch.setattr(
+        piper_mod.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(returncode=0, stdout=b"\x00\x01" * 200, stderr=b""),
+    )
+    result = piper_mod.PiperVoice().synthesize(
+        piper_mod.SpeakRequest(text="hello", voice_id="en_GB-alan-low")
+    )
+    assert result.response_format == "wav"
+    assert result.data[:4] == b"RIFF"
+
+
+def test_piper_synthesize_reports_failure(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    import narra.tts.piper as piper_mod
+
+    monkeypatch.setattr(piper_mod, "_ensure_runtime", lambda base: (tmp_path / "piper", tmp_path / "lib"))
+    monkeypatch.setattr(piper_mod, "_ensure_voice", lambda base, name: (tmp_path / "v.onnx", 22050))
+    monkeypatch.setattr(
+        piper_mod.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(returncode=1, stdout=b"", stderr=b"boom"),
+    )
+    from narra.tts.base import VoiceError
+
+    with pytest.raises(VoiceError):
+        piper_mod.PiperVoice().synthesize(piper_mod.SpeakRequest(text="x"))
+
+
+def test_kokoro_resolve_voice():
+    from narra.tts.kokoro import KokoroVoice
+
+    voice = KokoroVoice()
+    assert voice._resolve_voice("bf_emma") == "bf_emma"
+    assert voice._resolve_voice("en-US-AndrewNeural") == KokoroVoice.default_voice
+
+
+def test_kokoro_synthesize_mocked(monkeypatch):
+    import numpy as np
+
+    import narra.tts.kokoro as kokoro_mod
+
+    class FakeKokoro:
+        def create(self, text, voice, speed, lang):
+            return np.zeros(2400, dtype=np.float32), 24000
+
+    monkeypatch.setattr(kokoro_mod.KokoroVoice, "_load", lambda self: FakeKokoro())
+    result = kokoro_mod.KokoroVoice().synthesize(
+        kokoro_mod.SpeakRequest(text="hello", voice_id="af_sarah")
+    )
+    assert result.response_format == "wav"
+    assert result.data[:4] == b"RIFF"
+
+
+def test_compare_cli_writes_one_mp3_per_voice(monkeypatch, tmp_path):
+    from typer.testing import CliRunner
+
+    import narra.core as core_mod
+    import narra.script as script_mod
+    from narra.cli import app
+    from narra.writers.base import DialogueLine
+
+    monkeypatch.setattr(
+        script_mod, "outline_to_dialogue", lambda *a, **k: [DialogueLine("Alex", "Hi")]
+    )
+    monkeypatch.setattr(core_mod, "voice_lines", lambda *a, **k: b"ID3audio")
+
+    def fake_save(episode, out=None, out_dir=None):
+        from pathlib import Path
+
+        target = Path(out) if out else Path(out_dir or ".") / "x.mp3"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(episode.audio)
+        return target, target.with_suffix(".mp3.json")
+
+    monkeypatch.setattr(core_mod, "save_episode", fake_save)
+
+    src = tmp_path / "s.txt"
+    src.write_text("source text", encoding="utf-8")
+    out_dir = tmp_path / "out"
+
+    result = CliRunner().invoke(
+        app,
+        ["compare", str(src), "--voice", "edge", "--voice", "gemini", "--out-dir", str(out_dir)],
+    )
+    assert result.exit_code == 0, result.output
+    files = sorted(p.name for p in out_dir.glob("*.mp3"))
+    assert len(files) == 2
+
+
 # --- M1: writer helpers ------------------------------------------------------
 
 

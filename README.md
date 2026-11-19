@@ -39,17 +39,24 @@ episode = core.generate("paper.pdf", settings, format="deep-dive")
   any `/v1/chat/completions`), `ollama` (local).
 - **Voice** (speaks each line): `edge` (free, default), `openai` /
   `openai-compatible` (OpenAI standard `/v1/audio/speech`), `gemini` (native
-  TTS), `piper` (local CPU), `kokoro` (local CPU).
+  TTS), `piper` (local CPU, auto-downloads), `kokoro` (local CPU, `narra[local]`).
 
 Keys live in `~/.narra.yaml` (or `${VAR}` references), never in the browser.
 
+## Compare voices
+
+```bash
+narra compare "paper.pdf" --voice edge --voice piper --out-dir out/
+# writes one MP3 per voice from a single script
+```
+
 ## Status
 
-**0.2.0 — M2.** The core runs end to end (source → script → voicing → MP3 +
-sidecar), and `narra serve` adds a local web UI: paste or upload a source, pick a
-format and speakers, **write the script, edit it, then speak it** — with an
-in-memory gallery and Save. `piper`/`kokoro` (M3) and the desktop app (M4) are
-still to come. See `SPEC.md` for the full design and milestones.
+**0.3.0 — M3.** The core runs end to end (source → script → voicing → MP3 +
+sidecar), `narra serve` adds a local web UI (write → edit → speak, gallery,
+Save), and local CPU voices are here: **Piper** (auto-downloaded, no Python deps)
+and **Kokoro** (`narra[local]`), plus `narra compare` to A/B voices. The desktop
+app (M4) is still to come. See `SPEC.md` for the full design and milestones.
 
 ## Privacy
 

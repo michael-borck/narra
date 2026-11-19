@@ -16,14 +16,13 @@ Two provider abstractions, chosen independently:
   (`/v1/audio/speech`), `gemini` (native), `piper` (local CPU), `kokoro`
   (local CPU / Speaches)
 
-## Status (0.2.0 — M2)
+## Status (0.3.0 — M3)
 
 - **M1 done:** `narra "source.pdf" --format ... --out ...` runs end to end.
   - Writers: `gemini` (default, `gemini-flash-latest`, v1beta), `openai-compatible`
     (BYOK `/v1/chat/completions`, JSON), `ollama` (`/api/chat` + JSON schema).
   - Voices: `edge` (free default), `openai-compatible` (`/v1/audio/speech`),
-    `gemini` (native TTS, 24 kHz PCM wrapped to WAV). `piper` + `kokoro` are
-    still stubs (M3).
+    `gemini` (native TTS, 24 kHz PCM wrapped to WAV).
   - `core.generate()`: read source → writer → per-line voicing → pydub stitch
     (180–420 ms pauses) → MP3 + JSON sidecar. `--voice` overrides all lines;
     per-speaker providers come from `speakers:` profiles.
@@ -35,12 +34,23 @@ Two provider abstractions, chosen independently:
     (`X-Narra-Token` / `?token=` / cookie); generated for non-local binds.
   - In-memory gallery (cap 50); Save writes MP3 + sidecar to `serve.out_dir`
     (default `~/Podcasts/Narra`). Self-contained page, no CDNs.
+- **M3 done:** local CPU voices + compare.
+  - `piper` — managed runtime + sha256-pinned voices under `~/.narra/piper/`
+    (`NARRA_PIPER_DIR` to override). Pure stdlib; downloads the rhasspy release
+    + phonemize dylibs on first use, spawns `piper --output-raw`, wraps WAV.
+  - `kokoro` — `kokoro-onnx` (lazy import); downloads `kokoro-v1.0.onnx` +
+    `voices-v1.0.bin` to `~/.narra/kokoro/`. Needs `pip install "narra[local]"`.
+  - Per-speaker voice overrides (any speaker → any provider).
+  - `narra compare SRC --voice edge --voice gemini [--out-dir]` writes one MP3
+    per voice from a single script.
 - **Live-verified:** Gemini writer + edge voice (CLI, 71 s); Gemini writer +
   Gemini voice (CLI, two-speaker); full web flow (script → 48 s MP3 → gallery →
-  save → audio round-trip) via HTTP.
-- **Not live-verified:** OpenAI-compatible writer/voice (key has no credits, 429)
-  — unit-tested with mocked HTTP. Ollama not run (no local server).
-- **Still skeleton:** `piper`/`kokoro` (M3), desktop (M4).
+  save → round-trip); **Piper local voice** (downloaded + synthesized a 5.5 s
+  WAV, first run 18 s).
+- **Not live-verified:** OpenAI-compatible writer/voice (key has no credits,
+  429) and Kokoro (310 MB model not pulled here) — both unit-tested with mocks.
+  Ollama not run (no local server).
+- **Still skeleton:** desktop (M4), demo mode, landing page.
 - No infographic / show-notes card — that is a separate tool.
 
 ## Local commands
@@ -57,7 +67,7 @@ uv run --no-sync pytest
 
 ```bash
 uv build
-twine upload dist/narra-0.2.0*     # uses ~/.pypirc
+twine upload dist/narra-0.3.0*     # uses ~/.pypirc
 ```
 
 CI `publish.yml` also builds on `v*` tags via `pypa/gh-action-pypi-publish`, but
