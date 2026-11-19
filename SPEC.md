@@ -241,7 +241,7 @@ narra/
 tests/
 ```
 
-- **Python 3.10+**, `typer`, `rich`, `requests`, `pyyaml`, `pydantic`.
+- **Python 3.10+**, `typer`, `rich`, `requests`, `pyyaml`, `pydantic`, `pypdf`.
 - **Extras:** `audio=[pydub]`, `edge=[edge-tts]`, `gemini=[google-genai]`,
   `local=[piper-tts, kokoro-onnx, numpy]`, `serve=[fastapi, uvicorn]`.
 - **Packaging:** hatchling; `pip install narra`, publish to PyPI.
@@ -313,6 +313,6 @@ Narra borrows ideas, with acknowledgment, from:
 - **0.4.0 — M4.** Tauri v2 desktop shell (`desktop/`): uv-bootstrapped private
   runtime, `narra serve` sidecar, BYOK Settings sheet writing `~/.narra.yaml`.
   `serve` gained `--no-browser` / `--desktop` / `--out-dir` for the sidecar.
-- **0.5.1 — desktop installers.** No Python changes; ships signed + notarized
+- **0.5.2 — desktop installers.** No Python changes; ships signed + notarized
   macOS/Windows/Linux installers built by the shared app-hq Tauri pipeline on
   the `v*` tag. Desktop, CLI, and package versions are kept in lockstep.

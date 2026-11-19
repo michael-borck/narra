@@ -97,6 +97,18 @@ def test_read_source_txt(tmp_path):
         read_source(str(tmp_path / "missing.txt"))
 
 
+def test_read_source_pdf(tmp_path):
+    # pypdf is a core dependency now (PDF input is a core feature); this guards
+    # against it slipping back to dev-only and breaking the desktop runtime.
+    pypdf = pytest.importorskip("pypdf")
+    writer = pypdf.PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    pdf = tmp_path / "a.pdf"
+    with open(pdf, "wb") as f:
+        writer.write(f)
+    assert isinstance(read_source(str(pdf)), str)
+
+
 def test_generate_fails_cleanly_without_key(tmp_path, monkeypatch):
     for var in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY", "OPENAI_BASE_URL"):
         monkeypatch.delenv(var, raising=False)

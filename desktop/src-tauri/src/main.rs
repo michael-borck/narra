@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
 /// The narra release the runtime installs; bump together with PyPI releases.
-const NARRA_VERSION: &str = "0.5.1";
+const NARRA_VERSION: &str = "0.5.2";
 
 struct Sidecar(Mutex<Option<Child>>);
 

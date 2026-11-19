@@ -1,6 +1,6 @@
 [package]
 name = "narra-desktop"
-version = "0.5.1"
+version = "0.5.2"
 description = "Narra — source to podcast, on your desktop"
 authors = ["Michael Borck <michael.borck@curtin.edu.au>"]
 license = "MIT"
