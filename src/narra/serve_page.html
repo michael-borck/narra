@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Narra</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    margin: 0; background: #0f1115; color: #e7e9ee;
+    display: grid; place-items: center; min-height: 100vh;
+  }
+  main { max-width: 640px; padding: 2.5rem; }
+  h1 { font-size: 2rem; margin: 0 0 .25rem; letter-spacing: -0.02em; }
+  .tag { color: #8b93a1; margin: 0 0 2rem; }
+  .card {
+    background: #171a21; border: 1px solid #262b36; border-radius: 14px;
+    padding: 1.5rem 1.75rem;
+  }
+  code {
+    background: #0f1115; border: 1px solid #262b36; border-radius: 6px;
+    padding: .1rem .4rem; font-size: .9em;
+  }
+  a { color: #6ea8fe; }
+  .pill {
+    display: inline-block; font-size: .75rem; letter-spacing: .08em;
+    text-transform: uppercase; color: #6ea8fe; border: 1px solid #2b3b5c;
+    border-radius: 999px; padding: .15rem .6rem; margin-bottom: 1rem;
+  }
+</style>
+</head>
+<body>
+  <main>
+    <span class="pill">Narra</span>
+    <h1>Tell it into a podcast.</h1>
+    <p class="tag">Source in. Multi-speaker episode out.</p>
+    <div class="card">
+      <p>The web UI arrives in <strong>M2</strong>. This is the 0.0.1 skeleton.</p>
+      <p>In the meantime, use the CLI:</p>
+      <p><code>narra "paper.pdf" --format deep-dive --out episode.mp3</code></p>
+      <p><a href="/api/health">health</a></p>
+    </div>
+  </main>
+</body>
+</html>

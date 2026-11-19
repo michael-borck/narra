@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# AppleDouble files on exFAT
+._*
+
+# Local config and output
+narra.yaml
+.narra.yaml
+podcasts/
+output/
+*.mp3.tmp
+
+# Tauri / Rust
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+
+# OS
+.DS_Store
+
+# Node (Tauri CLI)
+node_modules/
