@@ -16,7 +16,7 @@ Two provider abstractions, chosen independently:
   (`/v1/audio/speech`), `gemini` (native), `piper` (local CPU), `kokoro`
   (local CPU / Speaches)
 
-## Status (0.5.0 — M4 desktop release)
+## Status (0.5.1 — M4 desktop release)
 
 - **M1 done:** `narra "source.pdf" --format ... --out ...` runs end to end.
   - Writers: `gemini` (default, `gemini-flash-latest`, v1beta), `openai-compatible`
@@ -45,7 +45,7 @@ Two provider abstractions, chosen independently:
     per voice from a single script.
 - **M4 done:** Tauri v2 desktop shell (`desktop/`).
   - `desktop/src-tauri/src/main.rs` — bootstraps a private uv venv, installs
-    `narra[serve]==NARRA_VERSION` (0.5.0), runs `narra serve --no-browser
+    `narra[serve]==NARRA_VERSION` (0.5.1), runs `narra serve --no-browser
     --desktop --host 127.0.0.1 --port <rand> --out-dir ~/Podcasts/Narra` as a
     sidecar, shows the served UI in an iframe.
   - `serve` gained `--no-browser`, `--desktop`, `--out-dir` for the sidecar.
@@ -81,7 +81,7 @@ uv run --no-sync pytest
 
 ```bash
 uv build
-twine upload dist/narra-0.5.0*     # uses ~/.pypirc
+twine upload dist/narra-0.5.1*     # uses ~/.pypirc
 ```
 
 CI `publish.yml` also builds on `v*` tags via `pypa/gh-action-pypi-publish`, but
