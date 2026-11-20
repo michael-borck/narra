@@ -59,12 +59,13 @@ UI with a Settings sheet for your writer and voice. Installers are built by
 
 ## Status
 
-**0.7.0 — M4.** The core runs end to end (source → script → voicing → MP3 +
+**0.8.0 — M4.** The core runs end to end (source → script → voicing → MP3 +
 sidecar), `narra serve` adds a local web UI (write → edit → speak, gallery,
 Save), local CPU voices (Piper, Kokoro) and `narra compare` are in, and the
-Tauri desktop shell ships signed/notarized installers. Landing page:
-<https://michael-borck.github.io/narra/>. Still to come: demo mode and a real
-app icon. See `SPEC.md` for the full design and milestones.
+Tauri desktop shell ships signed/notarized installers with auto-update. Demo
+mode (`narra serve --demo`), a BYOK/self-host guide (`docs/SELF-HOST.md`), and a
+real app icon. Landing page: <https://michael-borck.github.io/narra/>. See
+`SPEC.md` for the full design and milestones.
 
 ## Privacy
 

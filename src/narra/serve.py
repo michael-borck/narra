@@ -16,6 +16,7 @@ import copy
 import os
 import tempfile
 import threading
+import time
 import uuid
 from collections import OrderedDict
 from importlib import resources
@@ -35,6 +36,12 @@ from narra.writers.base import DialogueLine, WriterError
 
 #: In-memory session gallery cap (privacy: it dies with the process).
 MAX_EPISODES = 50
+
+#: Demo-mode guardrails (SPEC §3): friction-free (no token) but bounded, and
+#: truly non-storing — Save is disabled and episodes evaporate after a while.
+DEMO_EPISODES_PER_HOUR = 6  # per client IP
+DEMO_MAX_LINES = 40         # cap script length so a demo can't run for hours
+DEMO_TTL_SECONDS = 15 * 60
 
 #: Which env vars make a provider usable (reported to the UI).
 _PROVIDER_ENV = {
@@ -130,13 +137,24 @@ def _settings_with_overrides(base: dict[str, Any], body: TestBody) -> dict[str, 
     return s
 
 
-def create_app(config: dict[str, Any] | None = None, token: str | None = None) -> FastAPI:
+def create_app(
+    config: dict[str, Any] | None = None,
+    token: str | None = None,
+    demo: bool = False,
+    demo_episodes_per_hour: int = DEMO_EPISODES_PER_HOUR,
+    demo_ttl_seconds: float = DEMO_TTL_SECONDS,
+) -> FastAPI:
     """Build the FastAPI app for the web UI.
 
     ``token`` gates the API when set (an empty token leaves it open, for
     localhost). The gallery is held in memory and capped at MAX_EPISODES.
+
+    Demo mode (``--demo`` / ``NARRA_DEMO=1``) is friction-free (no token) but
+    bounded: writer/voice locked to the server config, a per-IP hourly budget,
+    Save disabled, and gallery entries expire after ``demo_ttl_seconds``.
     """
     settings = config or {}
+    auth_token = "" if demo else (token or "")
     app = FastAPI(title="Narra", version=__version__)
     # The desktop Settings sheet (served from the Tauri origin) calls the
     # sidecar for /api/test, so allow that origin through CORS.
@@ -151,21 +169,56 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
         allow_headers=["*"],
     )
     episodes: OrderedDict[str, core.Episode] = OrderedDict()
+    episode_times: dict[str, float] = {}  # demo: id -> created epoch
     saved_ids: set[str] = set()
+    generation_log: dict[str, list[float]] = {}  # demo: client ip -> times
     lock = threading.Lock()
+
+    def client_ip(request: Request) -> str:
+        # Behind a reverse proxy the real IP is in X-Forwarded-For.
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    def check_demo_budget(request: Request) -> None:
+        ip = client_ip(request)
+        now = time.time()
+        with lock:
+            recent = [t for t in generation_log.get(ip, []) if now - t < 3600]
+            if len(recent) >= demo_episodes_per_hour:
+                minutes = int((3600 - (now - recent[0])) // 60) + 1
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Demo limit reached ({demo_episodes_per_hour} "
+                    f"episodes/hour). Try again in ~{minutes} min — or run "
+                    "Narra yourself, free and private: pip install narra",
+                )
+            recent.append(now)
+            generation_log[ip] = recent
+
+    def evict_expired() -> None:
+        if not demo:
+            return
+        cutoff = time.time() - demo_ttl_seconds
+        with lock:
+            for key in [k for k, t in episode_times.items() if t < cutoff]:
+                episodes.pop(key, None)
+                episode_times.pop(key, None)
+                saved_ids.discard(key)
 
     def guard(
         request: Request,
         x_narra_token: str | None = Header(default=None),
     ) -> None:
-        if not token:
+        if not auth_token:
             return
         supplied = (
             x_narra_token
             or request.query_params.get("token")
             or request.cookies.get("narra_token")
         )
-        if supplied != token:
+        if supplied != auth_token:
             raise HTTPException(status_code=401, detail="Invalid or missing token.")
 
     @app.get("/", response_class=HTMLResponse)
@@ -182,6 +235,7 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
                 "writer": settings.get("writer"),
                 "voice": settings.get("voice"),
                 "format": settings.get("format"),
+                "demo": demo,
             }
         )
 
@@ -194,29 +248,37 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
             name: any(os.getenv(var) for var in envs)
             for name, envs in _PROVIDER_ENV.items()
         }
-        return JSONResponse(
-            {
-                "version": __version__,
-                "requires_token": bool(token),
-                "writer": settings.get("writer") or "gemini",
-                "voice": settings.get("voice") or "edge",
-                "format": settings.get("format") or "deep-dive",
-                "formats": format_options(),
-                "writers": writers,
-                "voices": voices,
-                "providers_available": available,
-                "speakers": [
-                    {
-                        "name": s.name,
-                        "persona": s.persona,
-                        "provider": s.provider,
-                        "voice_id": s.voice_id,
-                        "model": s.model,
-                    }
-                    for s in speakers
-                ],
+        info: dict[str, Any] = {
+            "version": __version__,
+            "requires_token": bool(auth_token),
+            "demo": demo,
+            "writer": settings.get("writer") or "gemini",
+            "voice": settings.get("voice") or "edge",
+            "format": settings.get("format") or "deep-dive",
+            "formats": format_options(),
+            "writers": writers,
+            "voices": voices,
+            "providers_available": available,
+            "speakers": [
+                {
+                    "name": s.name,
+                    "persona": s.persona,
+                    "provider": s.provider,
+                    "voice_id": s.voice_id,
+                    "model": s.model,
+                }
+                for s in speakers
+            ],
+        }
+        if demo:
+            # In demo, the writer/voice are locked to the server config; tell
+            # the UI so it hides the BYOK pickers and shows the limits.
+            info["limits"] = {
+                "episodes_per_hour": demo_episodes_per_hour,
+                "ttl_minutes": int(demo_ttl_seconds // 60),
+                "max_lines": DEMO_MAX_LINES,
             }
-        )
+        return JSONResponse(info)
 
     @app.post("/api/extract", dependencies=[Depends(guard)])
     async def extract(file: UploadFile = File(...)) -> JSONResponse:
@@ -258,11 +320,19 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
         )
 
     @app.post("/api/audio", dependencies=[Depends(guard)])
-    def make_audio(body: AudioBody) -> JSONResponse:
+    def make_audio(body: AudioBody, request: Request) -> JSONResponse:
         lines = [DialogueLine(speaker=ln.get("speaker", ""), text=ln.get("text", "")) for ln in body.lines]
         lines = [ln for ln in lines if ln.text.strip()]
         if not lines:
             raise HTTPException(status_code=400, detail="No dialogue lines to speak.")
+        evict_expired()
+        if demo:
+            if len(lines) > DEMO_MAX_LINES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"The demo caps a script at {DEMO_MAX_LINES} lines.",
+                )
+            check_demo_budget(request)
         speakers = resolve_speakers(body.speakers or settings.get("speakers"))
         fmt = get_format(body.format)
         writer_name = body.writer or str(settings.get("writer") or "gemini")
@@ -285,8 +355,11 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
         episode_id = uuid.uuid4().hex[:12]
         with lock:
             episodes[episode_id] = episode
+            episode_times[episode_id] = time.time()
             while len(episodes) > MAX_EPISODES:
-                episodes.popitem(last=False)
+                old, _ = episodes.popitem(last=False)
+                episode_times.pop(old, None)
+                saved_ids.discard(old)
         return JSONResponse(
             {
                 "id": episode_id,
@@ -297,11 +370,19 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
         )
 
     @app.post("/api/compare", dependencies=[Depends(guard)])
-    def compare(body: CompareBody) -> JSONResponse:
+    def compare(body: CompareBody, request: Request) -> JSONResponse:
         lines = [DialogueLine(speaker=ln.get("speaker", ""), text=ln.get("text", "")) for ln in body.lines]
         lines = [ln for ln in lines if ln.text.strip()]
         if not lines:
             raise HTTPException(status_code=400, detail="No dialogue lines to speak.")
+        evict_expired()
+        if demo:
+            if len(lines) > DEMO_MAX_LINES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"The demo caps a script at {DEMO_MAX_LINES} lines.",
+                )
+            check_demo_budget(request)
         speakers = resolve_speakers(body.speakers or settings.get("speakers"))
         fmt = get_format(body.format)
         writer_name = body.writer or str(settings.get("writer") or "gemini")
@@ -328,8 +409,11 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
             episode_id = uuid.uuid4().hex[:12]
             with lock:
                 episodes[episode_id] = episode
+                episode_times[episode_id] = time.time()
                 while len(episodes) > MAX_EPISODES:
-                    episodes.popitem(last=False)
+                    old, _ = episodes.popitem(last=False)
+                    episode_times.pop(old, None)
+                    saved_ids.discard(old)
             results.append(
                 {
                     "voice": provider,
@@ -391,6 +475,12 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
 
     @app.post("/api/episodes/{episode_id}/save", dependencies=[Depends(guard)])
     def save_episode(episode_id: str) -> JSONResponse:
+        if demo:
+            raise HTTPException(
+                status_code=403,
+                detail="The demo stores nothing server-side — use Download, "
+                "or run Narra locally: pip install narra",
+            )
         serve_cfg = settings.get("serve") or {}
         out_dir = str(serve_cfg.get("out_dir") or "~/Podcasts/Narra")
         with lock:

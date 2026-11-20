@@ -108,6 +108,11 @@
 </header>
 
 <div class="wrap">
+  <div class="hidden" id="demoBanner" style="margin:1rem 0;padding:.8rem 1.1rem;border:1px solid var(--line);border-radius:12px;background:var(--panel)">
+    <strong>Demo.</strong> This shared instance is rate-limited and stores nothing
+    — episodes expire after a few minutes and Save is disabled. For real use,
+    run it yourself free and private: <code>pip install narra</code>.
+  </div>
   <div class="row hidden" id="tokenBar" style="margin-bottom:1rem">
     <input id="tokenInput" placeholder="Access token" style="max-width:320px" />
     <button id="tokenBtn">Unlock</button>
@@ -241,6 +246,19 @@ async function loadConfig() {
   if (CONFIG.requires_token && !TOKEN) { showTokenBar("Enter the access token to continue."); return; }
   $("tokenBar").classList.add("hidden");
 
+  // Demo: banner, locked writer/voice, Save -> Download.
+  if (CONFIG.demo) {
+    $("demoBanner").classList.remove("hidden");
+    const note = document.createElement("p");
+    note.className = "small";
+    note.style.marginTop = ".6rem";
+    const lim = CONFIG.limits || {};
+    note.textContent = `Demo limits: ${lim.episodes_per_hour || "?"} episodes/hour, ` +
+      `${lim.ttl_minutes || "?"} min expiry, max ${lim.max_lines || "?"} lines.`;
+    $("demoBanner").appendChild(note);
+    $("btn-save").textContent = "Download";
+  }
+
   // formats
   $("formats").innerHTML = "";
   CONFIG.formats.forEach((f) => {
@@ -260,6 +278,12 @@ async function loadConfig() {
   // writer / voice selects
   $("writer").innerHTML = CONFIG.writers.map((w) => `<option${w === CONFIG.writer ? " selected" : ""}>${w}</option>`).join("");
   $("voice").innerHTML = CONFIG.voices.map((v) => `<option${v === CONFIG.voice ? " selected" : ""}>${v}</option>`).join("");
+  if (CONFIG.demo) {
+    // Demo locks the writer/voice to the server config (visitors can't route
+    // spend to the host's other providers).
+    $("writer").disabled = true;
+    $("voice").disabled = true;
+  }
 
   renderSpeakers(CONFIG.speakers || []);
   loadGallery();
@@ -395,6 +419,7 @@ async function speak() {
 
 async function saveCurrent() {
   if (!CURRENT) return;
+  if (CONFIG && CONFIG.demo) { downloadCurrent(); return; }
   try {
     const data = await api(`/api/episodes/${CURRENT.id}/save`, { method: "POST" });
     setStatus("Saved to " + data.path, "ok");

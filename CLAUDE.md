@@ -16,7 +16,7 @@ Two provider abstractions, chosen independently:
   (`/v1/audio/speech`), `gemini` (native), `piper` (local CPU), `kokoro`
   (local CPU / Speaches)
 
-## Status (0.7.0 — M4 desktop release)
+## Status (0.8.0 — M4 desktop release)
 
 - **M1 done:** `narra "source.pdf" --format ... --out ...` runs end to end.
   - Writers: `gemini` (default, `gemini-flash-latest`, v1beta), `openai-compatible`
@@ -45,7 +45,7 @@ Two provider abstractions, chosen independently:
     per voice from a single script.
 - **M4 done:** Tauri v2 desktop shell (`desktop/`).
   - `desktop/src-tauri/src/main.rs` — bootstraps a private uv venv, installs
-    `narra[serve]==NARRA_VERSION` (0.7.0), runs `narra serve --no-browser
+    `narra[serve]==NARRA_VERSION` (0.8.0), runs `narra serve --no-browser
     --desktop --host 127.0.0.1 --port <rand> --out-dir ~/Podcasts/Narra` as a
     sidecar, shows the served UI in an iframe.
   - `serve` gained `--no-browser`, `--desktop`, `--out-dir` for the sidecar.
@@ -64,24 +64,29 @@ Two provider abstractions, chosen independently:
     `desktop.yml` makes CI publish a signed `latest.json`. Updater private key
     + password live in repo secrets (`TAURI_SIGNING_PRIVATE_KEY[_PASSWORD]`);
     the public key is in `tauri.conf.json`, the private key in `~/.certs/`.
-  - **Icon** (0.7.0): `desktop/src-tauri/icons/` (white mic on a green
+  - **Icon** (0.8.0): `desktop/src-tauri/icons/` (white mic on a green
     squircle; source `icon.svg`). Full Xcode/actool isn't installed here, so
     it's a flat set (PNG/icns/ico), not an Icon Composer `.icon`.
-  - **Compare in the web UI** (0.7.0): `POST /api/compare` + a Compare panel
+  - **Compare in the web UI** (0.8.0): `POST /api/compare` + a Compare panel
     (two voices, two players). Forcing a provider uses that provider's default
     voice, not the speaker's cross-provider voice id.
-  - **Test connection** (0.7.0): `POST /api/test` + a Settings-sheet button.
+  - **Test connection** (0.8.0): `POST /api/test` + a Settings-sheet button.
     `serve.py` allows the `tauri://localhost` origin through CORS so the shell
     can call the sidecar.
+  - **Demo mode** (0.8.0): `narra serve --demo` (or `NARRA_DEMO=1`) — no token,
+    per-IP hourly cap, 40-line cap, provider-locked, Save→403, 15-min TTL, banner.
+    Deploy recipes in `docs/demo-deploy.md`; BYOK guide in `docs/SELF-HOST.md`.
 - **Live-verified:** Gemini writer + edge voice (CLI, 71 s); Gemini writer +
   Gemini voice (CLI, two-speaker); full web flow (script → 48 s MP3 → gallery →
   save → round-trip); **Piper local voice** (downloaded + synthesized a 5.5 s
   WAV); **narra compare** (edge 47.0 s vs piper 47.6 s); sidecar flags serve.
-- **Not live-verified:** OpenAI-compatible writer/voice (key has no credits,
-  429), Kokoro (310 MB model not pulled), and the Tauri window itself (only
-  `cargo check`, no display) — unit-tested / compile-checked.
-- **Still to do:** demo mode, real app icon.
-- No infographic / show-notes card — that is a separate tool.
+- **Live-verified (0.8.0 pass):** **Ollama writer** (`qwen3.5:4b`) + edge
+  (32.8 s); **Gemini native voice** (50.5 s); **Kokoro** local CPU
+  (`kokoro-onnx`, 4.5 s WAV after a ~21 s first-run model download); and the
+  **OpenAI-compatible voice** path reached OpenAI correctly (429 no-credits on
+  this key — the request wiring is proven, only billing is missing).
+- **Not live-verified:** OpenAI chat **writer** and TTS (same 429 no-credits key).
+- **Still skeleton:** landing page.
 
 ## Landing page
 
@@ -105,7 +110,7 @@ uv run --no-sync pytest
 
 ```bash
 uv build
-twine upload dist/narra-0.7.0*     # uses ~/.pypirc
+twine upload dist/narra-0.8.0*     # uses ~/.pypirc
 ```
 
 CI `publish.yml` also builds on `v*` tags via `pypa/gh-action-pypi-publish`, but

@@ -1,0 +1,21 @@
+# Narra configuration for a hosted / demo instance.
+#
+# In demo mode the writer and voice are LOCKED to whatever is set here —
+# visitors can't route spend to other providers. Set these to your own
+# (free or cheap) providers before starting the container.
+
+writer: gemini                 # gemini | openai-compatible | ollama
+voice: edge                    # edge (free) | openai-compatible | gemini | piper | kokoro
+
+writers:
+  gemini:
+    model: gemini-flash-latest
+    # api_key: "${GEMINI_API_KEY}"   # or set GEMINI_API_KEY in .env
+
+voices:
+  edge: {}                     # free, no key
+
+serve:
+  host: 0.0.0.0                # overridden by the container entrypoint
+  port: 5372
+  out_dir: /config/podcasts

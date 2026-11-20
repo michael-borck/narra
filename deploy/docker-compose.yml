@@ -1,0 +1,21 @@
+# Narra demo/hosted instance.
+#
+# Quick start on a VPS:
+#   mkdir narra && cd narra
+#   base=https://raw.githubusercontent.com/michael-borck/narra/main/deploy
+#   curl -O $base/docker-compose.yml
+#   curl -o narra.yaml $base/narra.yaml.example
+#   curl -o .env $base/.env.example
+#   $EDITOR narra.yaml .env        # your writer + voice + secrets
+#   docker compose up -d
+#
+# Then point your reverse proxy at 127.0.0.1:5372.
+services:
+  narra:
+    build: https://github.com/michael-borck/narra.git
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5372:5372"
+    volumes:
+      - ./narra.yaml:/config/narra.yaml:ro
+    env_file: .env

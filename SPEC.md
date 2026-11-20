@@ -320,3 +320,8 @@ Narra borrows ideas, with acknowledgment, from:
   microphone on a green squircle). Compare two voices from one script in the
   web UI. A "Test connection" button in the desktop Settings sheet that checks
   the configured writer and voice without saving.
+- **0.8.0 — demo mode, BYOK hardening, docs.** `narra serve --demo`
+  (rate-limited, non-storing, provider-locked, banner). `--voice-model` and
+  `--base-url` now flow to the active voice. `docs/SELF-HOST.md` (BYOK /
+  self-host guide) and `docs/demo-deploy.md`. Live-verified Ollama writer,
+  Gemini voice, Kokoro, and the OpenAI-compatible voice request path.

@@ -78,23 +78,38 @@ def _apply_overrides(
     model: str | None,
     base_url: str | None,
     api_key: str | None,
+    voice_model: str | None = None,
 ) -> dict[str, Any]:
     """Overlay CLI flags on top of the loaded config (flags win)."""
     if writer:
         settings["writer"] = writer
     if voice:
         settings["voice"] = voice
+    if voice_model:
+        active_voice = str(settings.get("voice") or "edge")
+        vblock = settings.setdefault("voices", {}).setdefault(active_voice, {})
+        vblock["model"] = voice_model
     if format:
         settings["format"] = format
     if model:
         settings["model"] = model
     if base_url or api_key:
-        active = str(settings.get("writer") or "gemini")
-        block = settings.setdefault("writers", {}).setdefault(active, {})
+        active_writer = str(settings.get("writer") or "gemini")
+        block = settings.setdefault("writers", {}).setdefault(active_writer, {})
         if base_url:
             block["base_url"] = base_url
         if api_key:
             block["api_key"] = api_key
+        # The same --base-url/--api-key should reach the active voice when it's
+        # an OpenAI-compatible endpoint (otherwise voicing a script needs the
+        # base_url in config).
+        active_voice = str(settings.get("voice") or "edge")
+        if active_voice in ("openai", "openai-compatible"):
+            vblock = settings.setdefault("voices", {}).setdefault(active_voice, {})
+            if base_url:
+                vblock["base_url"] = base_url
+            if api_key:
+                vblock["api_key"] = api_key
     return settings
 
 
@@ -135,13 +150,16 @@ def generate(
     writer: str | None = typer.Option(None, "--writer", "-w", help="Script writer."),
     voice: str | None = typer.Option(None, "--voice", help="Voice provider."),
     model: str | None = typer.Option(None, "--model", "-m", help="Writer model."),
+    voice_model: str | None = typer.Option(
+        None, "--voice-model", help="Voice model (for the active voice)."
+    ),
     base_url: str | None = typer.Option(None, "--base-url", help="Writer base URL."),
     api_key: str | None = typer.Option(None, "--api-key", help="Writer API key."),
     config: str | None = typer.Option(None, "--config", "-c", help="Config file."),
 ) -> None:
     """Generate a podcast episode from a source file."""
     settings = _apply_overrides(
-        _load(config), writer, voice, format, model, base_url, api_key
+        _load(config), writer, voice, format, model, base_url, api_key, voice_model
     )
 
     def progress(message: str) -> None:
@@ -258,10 +276,19 @@ def serve(
     desktop: bool = typer.Option(
         False, "--desktop", help="Desktop mode: bind localhost with no token gate."
     ),
+    demo: bool = typer.Option(
+        False,
+        "--demo",
+        help="Demo mode (or NARRA_DEMO=1): no token, rate-limited, "
+        "Save disabled — nothing stored server-side.",
+    ),
 ) -> None:
     """Run the local web UI (needs the [serve] extra)."""
+    import os
+
     _ = (no_browser, desktop)  # accepted for parity with the desktop sidecar
     settings = _load(config)
+    demo = demo or os.getenv("NARRA_DEMO", "").lower() in ("1", "true", "yes")
     serve_cfg = settings.get("serve") or {}
     if out_dir:
         serve_cfg = dict(serve_cfg)
@@ -283,13 +310,23 @@ def serve(
     import uvicorn
 
     password = serve_cfg.get("password")
-    if not password and bind_host not in ("127.0.0.1", "localhost", "::1"):
+    if demo:
+        # Friction-free by design: bounded by rate limits, not a token.
+        password = None
+        console.print(
+            "[bold]Demo mode[/bold]: no token, rate-limited, nothing stored."
+        )
+    elif not password and bind_host not in ("127.0.0.1", "localhost", "::1"):
         password = secrets.token_urlsafe(9)
         console.print(
             f"Binding to {bind_host} with no password set — generated one: {password}"
         )
 
-    uvicorn.run(create_app(settings, token=password), host=bind_host, port=bind_port)
+    uvicorn.run(
+        create_app(settings, token=password, demo=demo),
+        host=bind_host,
+        port=bind_port,
+    )
 
 
 if __name__ == "__main__":

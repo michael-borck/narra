@@ -20,7 +20,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 use tauri_plugin_updater::UpdaterExt;
 
 /// The narra release the runtime installs; bump together with PyPI releases.
-const NARRA_VERSION: &str = "0.7.0";
+const NARRA_VERSION: &str = "0.8.0";
 
 struct Sidecar(Mutex<Option<Child>>);
 

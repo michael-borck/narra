@@ -253,6 +253,53 @@ def test_token_guard():
     assert client.get("/api/config?token=s3cret").status_code == 200
 
 
+# --- Demo mode --------------------------------------------------------------
+
+
+def _demo_client(**kwargs):
+    fastapi_testclient = pytest.importorskip("fastapi.testclient")
+    from narra.serve import create_app
+
+    return fastapi_testclient.TestClient(
+        create_app({"writer": "gemini", "voice": "edge"}, demo=True, **kwargs)
+    )
+
+
+def test_demo_config_reports_limits():
+    client = _demo_client(demo_episodes_per_hour=6, demo_ttl_seconds=900)
+    cfg = client.get("/api/config").json()
+    assert cfg["demo"] is True
+    assert cfg["limits"]["episodes_per_hour"] == 6
+    assert cfg["limits"]["max_lines"] > 0
+
+
+def test_demo_save_is_disabled(monkeypatch):
+    monkeypatch.setattr("narra.core.voice_lines", lambda *a, **k: b"ID3x")
+    client = _demo_client()
+    ep_id = client.post(
+        "/api/audio", json={"lines": [{"speaker": "Alex", "text": "Hi"}]}
+    ).json()["id"]
+    res = client.post(f"/api/episodes/{ep_id}/save")
+    assert res.status_code == 403
+
+
+def test_demo_rate_limit(monkeypatch):
+    monkeypatch.setattr("narra.core.voice_lines", lambda *a, **k: b"ID3x")
+    client = _demo_client(demo_episodes_per_hour=2)
+    body = {"lines": [{"speaker": "Alex", "text": "Hi"}]}
+    assert client.post("/api/audio", json=body).status_code == 200
+    assert client.post("/api/audio", json=body).status_code == 200
+    third = client.post("/api/audio", json=body)
+    assert third.status_code == 429
+
+
+def test_demo_line_cap(monkeypatch):
+    client = _demo_client()
+    lines = [{"speaker": "Alex", "text": "x"} for _ in range(200)]
+    res = client.post("/api/audio", json={"lines": lines})
+    assert res.status_code == 400
+
+
 # --- M2: compare + connection test ------------------------------------------
 
 

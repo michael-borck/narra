@@ -42,13 +42,13 @@ On this repo's exFAT drive, set `CARGO_TARGET_DIR` to an internal disk.
 
 ## Release
 
-The desktop build uses the same `v*` tag as the PyPI release (e.g. `v0.7.0`):
+The desktop build uses the same `v*` tag as the PyPI release (e.g. `v0.8.0`):
 `desktop.yml` calls the shared app-hq Tauri pipeline, and `NARRA_VERSION` in
 `src-tauri/src/main.rs` plus the versions in `src-tauri/tauri.conf.json` +
 `src-tauri/Cargo.toml` all match the Python package version. Then:
 
 ```bash
-git tag v0.7.0 && git push origin v0.7.0
+git tag v0.8.0 && git push origin v0.8.0
 ```
 
 CI builds macOS (arm64 + x86_64), Windows (msi/exe) and Linux (AppImage/deb/rpm)
