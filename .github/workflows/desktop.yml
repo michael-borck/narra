@@ -22,7 +22,7 @@ jobs:
       install-command: npm ci --prefix desktop
       cache: ""
       preflight-command: ""
-      updater: false
+      updater: true
       release-body: |
         Narra — source to podcast, rendered by your own writer and voice.
 

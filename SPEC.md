@@ -313,6 +313,6 @@ Narra borrows ideas, with acknowledgment, from:
 - **0.4.0 — M4.** Tauri v2 desktop shell (`desktop/`): uv-bootstrapped private
   runtime, `narra serve` sidecar, BYOK Settings sheet writing `~/.narra.yaml`.
   `serve` gained `--no-browser` / `--desktop` / `--out-dir` for the sidecar.
-- **0.5.2 — desktop installers.** No Python changes; ships signed + notarized
-  macOS/Windows/Linux installers built by the shared app-hq Tauri pipeline on
-  the `v*` tag. Desktop, CLI, and package versions are kept in lockstep.
+- **0.6.0 — auto-update.** Adds the Tauri updater: a signed `latest.json`
+  published with each release and an in-app "Update" button that downloads,
+  installs, and restarts. Desktop, CLI, and package versions in lockstep.

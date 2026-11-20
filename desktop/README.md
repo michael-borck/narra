@@ -15,6 +15,10 @@ the installer stays small: no bundled browser engine, no 1 GB Python bundle.
    Gemini, Piper, or Kokoro), and the keys/endpoints each needs → written to
    `~/.narra.yaml` (chmod 600), the same config the CLI uses. Episodes are
    saved to `~/Podcasts/Narra`.
+4. **Auto-update**: on launch the shell checks `latest.json` on GitHub and
+   shows a "⬇ Update" button when a newer version exists. It downloads, installs
+   (verified against the pinned public key), and restarts. Updates are signed by
+   `TAURI_SIGNING_PRIVATE_KEY` in CI; the app never auto-installs silently.
 
 Privacy: no account, no telemetry, no bundled cloud — the only egress is the
 request to the writer and voice providers the user configures.
@@ -38,13 +42,13 @@ On this repo's exFAT drive, set `CARGO_TARGET_DIR` to an internal disk.
 
 ## Release
 
-The desktop build uses the same `v*` tag as the PyPI release (e.g. `v0.5.2`):
+The desktop build uses the same `v*` tag as the PyPI release (e.g. `v0.6.0`):
 `desktop.yml` calls the shared app-hq Tauri pipeline, and `NARRA_VERSION` in
 `src-tauri/src/main.rs` plus the versions in `src-tauri/tauri.conf.json` +
 `src-tauri/Cargo.toml` all match the Python package version. Then:
 
 ```bash
-git tag v0.5.2 && git push origin v0.5.2
+git tag v0.6.0 && git push origin v0.6.0
 ```
 
 CI builds macOS (arm64 + x86_64), Windows (msi/exe) and Linux (AppImage/deb/rpm)

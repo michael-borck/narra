@@ -17,9 +17,10 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
+use tauri_plugin_updater::UpdaterExt;
 
 /// The narra release the runtime installs; bump together with PyPI releases.
-const NARRA_VERSION: &str = "0.5.2";
+const NARRA_VERSION: &str = "0.6.0";
 
 struct Sidecar(Mutex<Option<Child>>);
 
@@ -445,14 +446,55 @@ async fn restart_server(app: AppHandle) -> Result<u16, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Check the configured update endpoint. Emits `update-available` with the new
+/// version when one exists, and returns whether an update is available.
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<bool, String> {
+    let updater = app.updater_builder().build().map_err(|e| e.to_string())?;
+    match updater.check().await.map_err(|e| e.to_string())? {
+        Some(update) => {
+            let version = update.version.clone();
+            let _ = app.emit("update-available", version);
+            Ok(true)
+        }
+        None => Ok(false),
+    }
+}
+
+/// Download and install the available update, then restart into it.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    let updater = app.updater_builder().build().map_err(|e| e.to_string())?;
+    if let Some(update) = updater.check().await.map_err(|e| e.to_string())? {
+        update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|e| e.to_string())?;
+        let _ = app.restart();
+    }
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Sidecar(Mutex::new(None)))
+        .setup(|app| {
+            // Check for updates in the background on launch; the shell header
+            // shows an Update button if one is available.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = check_update(handle).await;
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,
             start_server,
-            restart_server
+            restart_server,
+            check_update,
+            install_update
         ])
         .build(tauri::generate_context!())
         .expect("error while building Narra")

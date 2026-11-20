@@ -67,6 +67,7 @@
 <header>
   <span class="title">🎙️ Narra</span>
   <span id="status">starting…</span>
+  <button id="btn-update" class="hidden" title="Update Narra">⬇ Update</button>
   <button id="btn-settings" title="Writer &amp; voice settings">⚙ Settings</button>
 </header>
 <main>
@@ -238,9 +239,30 @@ $("btn-save").onclick = async () => {
 $("btn-cancel").onclick = () => { settingsOpen = false; if (serverPort) showApp(); };
 $("btn-settings").onclick = async () => { await loadSettingsForm(); showSettings(!!serverPort); };
 
+// Auto-update: the Rust shell checks on launch and emits "update-available".
+listen("update-available", (e) => {
+  $("btn-update").classList.remove("hidden");
+  $("btn-update").textContent = "⬇ Update to " + (e.payload || "new version");
+});
+
+$("btn-update").onclick = async () => {
+  const btn = $("btn-update");
+  btn.disabled = true;
+  $("status").textContent = "Downloading update…";
+  try {
+    await invoke("install_update");
+  } catch (e) {
+    $("status").textContent = "Update failed: " + (e && e.message ? e.message : e);
+    btn.disabled = false;
+  }
+};
+
 (async function init() {
   await loadSettingsForm();
   await boot(false);
+  // Re-check after the UI is listening (the launch-time check may have fired
+  // before this webview loaded).
+  try { await invoke("check_update"); } catch (e) { /* offline: ignore */ }
 })();
 </script>
 </body>
