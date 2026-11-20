@@ -18,4 +18,6 @@ voices:
 serve:
   host: 0.0.0.0                # overridden by the container entrypoint
   port: 5372
-  out_dir: /config/podcasts
+  # The container's /config is the read-only config mount, so save into the
+  # user's home (writable). Demo mode never writes here anyway.
+  out_dir: /home/narra/Podcasts
