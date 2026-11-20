@@ -1,0 +1,5 @@
+# The image installs `narra` from PyPI, so the build context only needs the
+# Dockerfile. Excluding everything else also avoids the exFAT `._*` AppleDouble
+# xattr error Docker's context sender hits on this volume.
+*
+!Dockerfile
