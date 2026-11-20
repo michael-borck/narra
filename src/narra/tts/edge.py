@@ -17,8 +17,10 @@ from narra.tts.base import SpeakRequest, SpeakResult, VoiceError, VoiceProvider
 class EdgeVoice(VoiceProvider):
     name = "edge"
     default_model = None
+    default_voice = "en-US-AndrewNeural"
 
     def synthesize(self, request: SpeakRequest) -> SpeakResult:
+        voice_id = request.voice_id or self.default_voice
         try:
             import edge_tts
         except ImportError as e:
@@ -32,7 +34,7 @@ class EdgeVoice(VoiceProvider):
             fd, tmp = tempfile.mkstemp(suffix=".mp3")
             os.close(fd)
             try:
-                asyncio.run(self._save(edge_tts, request.text, request.voice_id, tmp))
+                asyncio.run(self._save(edge_tts, request.text, voice_id, tmp))
                 data = Path(tmp).read_bytes()
                 if data:
                     return SpeakResult(data=data, response_format="mp3")

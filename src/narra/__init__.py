@@ -1,3 +1,3 @@
 """Narra — tell a source document into a multi-speaker podcast episode."""
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"

@@ -24,6 +24,7 @@ class GeminiVoice(VoiceProvider):
     name = "gemini"
     default_model = "gemini-3.8-flash-tts"
     sample_rate = 24000
+    default_voice = "Fenrir"
 
     def synthesize(self, request: SpeakRequest) -> SpeakResult:
         try:
@@ -50,7 +51,7 @@ class GeminiVoice(VoiceProvider):
         speech_config = types.SpeechConfig(
             voice_config=types.VoiceConfig(
                 prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                    voice_name=request.voice_id
+                    voice_name=request.voice_id or self.default_voice
                 )
             )
         )

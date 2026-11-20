@@ -151,8 +151,10 @@
 
         <div class="actions">
           <button class="primary" id="btn-save">Save &amp; start</button>
+          <button class="ghost" id="btn-test" type="button">Test connection</button>
           <button class="ghost hidden" id="btn-cancel">Cancel</button>
         </div>
+        <div id="test-results" class="small" style="margin-top:.6rem"></div>
         <div id="err"></div>
         <p class="note">Privacy: no account, no telemetry. The only network traffic is to the writer and voice providers you set here. Episodes are saved to ~/Podcasts/Narra.</p>
       </div>
@@ -238,6 +240,34 @@ $("btn-save").onclick = async () => {
 
 $("btn-cancel").onclick = () => { settingsOpen = false; if (serverPort) showApp(); };
 $("btn-settings").onclick = async () => { await loadSettingsForm(); showSettings(!!serverPort); };
+
+$("btn-test").onclick = async () => {
+  const box = $("test-results");
+  box.textContent = "";
+  if (!serverPort) {
+    box.innerHTML = '<span style="color:var(--danger)">Start the app first — testing needs the local server.</span>';
+    return;
+  }
+  $("btn-test").disabled = true;
+  box.textContent = "Testing…";
+  try {
+    const res = await fetch("http://127.0.0.1:" + serverPort + "/api/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(collectSettings()),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || ("HTTP " + res.status));
+    const line = (label, r) =>
+      `<div><strong>${label} (${r.name}):</strong> ` +
+      `<span style="color:${r.ok ? "var(--ok)" : "var(--danger)"}">${r.ok ? "OK" : "FAILED"}</span> — ${r.detail || ""}</div>`;
+    box.innerHTML = line("Writer", data.writer) + line("Voice", data.voice);
+  } catch (e) {
+    box.innerHTML = '<span style="color:var(--danger)">Test failed: ' + (e && e.message ? e.message : e) + "</span>";
+  } finally {
+    $("btn-test").disabled = false;
+  }
+};
 
 // Auto-update: the Rust shell checks on launch and emits "update-available".
 listen("update-available", (e) => {

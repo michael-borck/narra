@@ -18,6 +18,7 @@ from narra.tts.base import SpeakRequest, SpeakResult, VoiceError, VoiceProvider
 class OpenAICompatibleVoice(VoiceProvider):
     name = "openai-compatible"
     default_model = "gpt-4o-mini-tts"
+    default_voice = "alloy"
 
     def synthesize(self, request: SpeakRequest) -> SpeakResult:
         base_url = request.base_url or os.getenv("OPENAI_BASE_URL")
@@ -36,7 +37,7 @@ class OpenAICompatibleVoice(VoiceProvider):
         payload = {
             "model": model,
             "input": request.text,
-            "voice": request.voice_id,
+            "voice": request.voice_id or self.default_voice,
             "response_format": request.response_format,
             "speed": request.speed,
         }

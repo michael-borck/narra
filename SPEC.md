@@ -316,3 +316,7 @@ Narra borrows ideas, with acknowledgment, from:
 - **0.6.0 — auto-update.** Adds the Tauri updater: a signed `latest.json`
   published with each release and an in-app "Update" button that downloads,
   installs, and restarts. Desktop, CLI, and package versions in lockstep.
+- **0.7.0 — icon, compare, connection test.** A real Narra app icon (white
+  microphone on a green squircle). Compare two voices from one script in the
+  web UI. A "Test connection" button in the desktop Settings sheet that checks
+  the configured writer and voice without saving.

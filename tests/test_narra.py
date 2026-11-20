@@ -253,6 +253,51 @@ def test_token_guard():
     assert client.get("/api/config?token=s3cret").status_code == 200
 
 
+# --- M2: compare + connection test ------------------------------------------
+
+
+def test_compare_endpoint(monkeypatch):
+    monkeypatch.setattr("narra.core.voice_lines", lambda *a, **k: b"ID3x")
+    client = _client()
+    res = client.post(
+        "/api/compare",
+        json={"lines": [{"speaker": "Alex", "text": "Hi"}], "voices": ["edge", "piper"]},
+    )
+    assert res.status_code == 200
+    results = res.json()["results"]
+    assert [r["voice"] for r in results] == ["edge", "piper"]
+    assert all(r["ok"] for r in results)
+
+
+def test_compare_endpoint_reports_provider_error(monkeypatch):
+    def boom(*a, **k):
+        from narra.core import GenerationError
+
+        raise GenerationError("no such voice")
+
+    monkeypatch.setattr("narra.core.voice_lines", boom)
+    client = _client()
+    res = client.post(
+        "/api/compare",
+        json={"lines": [{"speaker": "Alex", "text": "Hi"}], "voices": ["piper"]},
+    )
+    assert res.status_code == 200
+    assert res.json()["results"][0]["ok"] is False
+
+
+def test_test_endpoint(monkeypatch):
+    import narra.testconn as tc
+
+    monkeypatch.setattr(tc, "test_writer", lambda s, w: (True, "OK"))
+    monkeypatch.setattr(tc, "test_voice", lambda s, v: (True, "10 bytes"))
+    client = _client({"writer": "gemini", "voice": "edge"})
+    res = client.post("/api/test", json={"writer": "gemini", "voice": "edge"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["writer"]["ok"] is True
+    assert body["voice"]["ok"] is True
+
+
 # --- M3: local voices + compare --------------------------------------------
 
 

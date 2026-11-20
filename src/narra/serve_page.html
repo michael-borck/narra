@@ -154,6 +154,7 @@
         <div class="row">
           <button class="ghost" id="addLine">+ Add line</button>
           <button id="speakBtn" style="margin-left:auto">Speak this script</button>
+          <button id="compareBtn" class="secondary">Compare</button>
         </div>
       </div>
       <div class="status" id="status"></div>
@@ -165,6 +166,16 @@
           <button class="secondary" id="downloadBtn">Download</button>
           <button class="danger" id="deleteBtn">Delete</button>
         </div>
+      </div>
+
+      <div id="comparePanel" class="hidden" style="margin-top:1rem">
+        <div class="row">
+          <select id="cmpA" style="max-width:190px"></select>
+          <span class="small">vs</span>
+          <select id="cmpB" style="max-width:190px"></select>
+          <button id="cmpGo">Compare</button>
+        </div>
+        <div id="cmpResults" style="margin-top:.7rem"></div>
       </div>
     </section>
   </div>
@@ -410,6 +421,50 @@ async function deleteCurrent() {
   } catch (e) { setStatus(e.message, "err"); }
 }
 
+function openCompare() {
+  $("comparePanel").classList.toggle("hidden");
+  if ($("cmpA").options.length === 0) {
+    const voices = CONFIG.voices;
+    $("cmpA").innerHTML = voices.map((v) => `<option${v === CONFIG.voice ? " selected" : ""}>${v}</option>`).join("");
+    const second = voices.find((v) => v !== CONFIG.voice) || voices[0] || "edge";
+    $("cmpB").innerHTML = voices.map((v) => `<option${v === second ? " selected" : ""}>${v}</option>`).join("");
+  }
+}
+
+async function runCompare() {
+  const lines = readLines();
+  if (!lines.length) { setStatus("Write a script first.", "err"); return; }
+  const voices = [$("cmpA").value, $("cmpB").value];
+  $("cmpGo").disabled = true;
+  $("cmpResults").innerHTML = '<p class="small">Comparing…</p>';
+  try {
+    const data = await api("/api/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lines, format: currentFormat(), writer: currentWriter(), speakers: readSpeakers(), voices }),
+    });
+    const box = $("cmpResults");
+    box.innerHTML = "";
+    data.results.forEach((r) => {
+      const el = document.createElement("div");
+      el.style.marginBottom = ".7rem";
+      if (!r.ok) {
+        el.innerHTML = `<div class="small"><strong>${r.voice}</strong> — ${r.detail || "failed"}</div>`;
+      } else {
+        const src = `/api/episodes/${r.id}/audio` + (TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : "");
+        el.innerHTML = `<div class="small"><strong>${r.voice}</strong></div><audio controls src="${src}" style="width:100%"></audio>`;
+      }
+      box.appendChild(el);
+    });
+    setStatus("Compare ready.", "ok");
+    loadGallery();
+  } catch (e) {
+    $("cmpResults").innerHTML = `<p class="status err">${e.message}</p>`;
+  } finally {
+    $("cmpGo").disabled = false;
+  }
+}
+
 async function loadGallery() {
   try {
     const data = await api("/api/episodes");
@@ -463,6 +518,8 @@ $("fileInput").addEventListener("change", async (ev) => {
 // events
 $("writeBtn").onclick = writeScript;
 $("speakBtn").onclick = speak;
+$("compareBtn").onclick = openCompare;
+$("cmpGo").onclick = runCompare;
 $("saveBtn").onclick = saveCurrent;
 $("downloadBtn").onclick = downloadCurrent;
 $("deleteBtn").onclick = deleteCurrent;

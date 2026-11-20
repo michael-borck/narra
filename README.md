@@ -59,7 +59,7 @@ UI with a Settings sheet for your writer and voice. Installers are built by
 
 ## Status
 
-**0.6.0 — M4.** The core runs end to end (source → script → voicing → MP3 +
+**0.7.0 — M4.** The core runs end to end (source → script → voicing → MP3 +
 sidecar), `narra serve` adds a local web UI (write → edit → speak, gallery,
 Save), local CPU voices (Piper, Kokoro) and `narra compare` are in, and the
 Tauri desktop shell ships signed/notarized installers. Landing page:

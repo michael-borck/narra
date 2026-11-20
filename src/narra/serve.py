@@ -12,6 +12,7 @@ Requires the [serve] extra.
 from __future__ import annotations
 
 import base64
+import copy
 import os
 import tempfile
 import threading
@@ -22,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 
@@ -56,6 +58,26 @@ class AudioBody(BaseModel):
     source_text: str = ""
 
 
+class CompareBody(BaseModel):
+    lines: list[dict[str, str]]
+    format: str = "deep-dive"
+    writer: str | None = None
+    speakers: list[dict[str, Any]] | None = None
+    voices: list[str] = []
+
+
+class TestBody(BaseModel):
+    writer: str | None = None
+    voice: str | None = None
+    gemini_key: str | None = None
+    openai_url: str | None = None
+    openai_key: str | None = None
+    openai_writer_model: str | None = None
+    openai_voice_model: str | None = None
+    ollama_url: str | None = None
+    ollama_model: str | None = None
+
+
 def _page_html() -> str:
     return (
         resources.files("narra")
@@ -68,6 +90,46 @@ def _error_detail(exc: Exception) -> str:
     return str(exc)
 
 
+def _settings_with_overrides(base: dict[str, Any], body: TestBody) -> dict[str, Any]:
+    """Merge the Settings-sheet fields over the loaded config (for a test)."""
+    s = copy.deepcopy(base)
+    if body.writer:
+        s["writer"] = body.writer
+    if body.voice:
+        s["voice"] = body.voice
+
+    writers = s.setdefault("writers", {})
+    if body.gemini_key:
+        writers.setdefault("gemini", {})["api_key"] = body.gemini_key
+    if body.openai_url or body.openai_key or body.openai_writer_model:
+        block = writers.setdefault("openai-compatible", {})
+        if body.openai_url:
+            block["base_url"] = body.openai_url
+        if body.openai_key:
+            block["api_key"] = body.openai_key
+        if body.openai_writer_model:
+            block["model"] = body.openai_writer_model
+    if body.ollama_url or body.ollama_model:
+        block = writers.setdefault("ollama", {})
+        if body.ollama_url:
+            block["base_url"] = body.ollama_url
+        if body.ollama_model:
+            block["model"] = body.ollama_model
+
+    voices = s.setdefault("voices", {})
+    if body.gemini_key:
+        voices.setdefault("gemini", {})["api_key"] = body.gemini_key
+    if body.openai_url or body.openai_key or body.openai_voice_model:
+        block = voices.setdefault("openai-compatible", {})
+        if body.openai_url:
+            block["base_url"] = body.openai_url
+        if body.openai_key:
+            block["api_key"] = body.openai_key
+        if body.openai_voice_model:
+            block["model"] = body.openai_voice_model
+    return s
+
+
 def create_app(config: dict[str, Any] | None = None, token: str | None = None) -> FastAPI:
     """Build the FastAPI app for the web UI.
 
@@ -76,6 +138,18 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
     """
     settings = config or {}
     app = FastAPI(title="Narra", version=__version__)
+    # The desktop Settings sheet (served from the Tauri origin) calls the
+    # sidecar for /api/test, so allow that origin through CORS.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "tauri://localhost",
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+        ],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     episodes: OrderedDict[str, core.Episode] = OrderedDict()
     saved_ids: set[str] = set()
     lock = threading.Lock()
@@ -219,6 +293,67 @@ def create_app(config: dict[str, Any] | None = None, token: str | None = None) -
                 "mime": "audio/mpeg",
                 "transcript": "\n\n".join(ln.text for ln in lines),
                 "audio": base64.b64encode(audio).decode("ascii"),
+            }
+        )
+
+    @app.post("/api/compare", dependencies=[Depends(guard)])
+    def compare(body: CompareBody) -> JSONResponse:
+        lines = [DialogueLine(speaker=ln.get("speaker", ""), text=ln.get("text", "")) for ln in body.lines]
+        lines = [ln for ln in lines if ln.text.strip()]
+        if not lines:
+            raise HTTPException(status_code=400, detail="No dialogue lines to speak.")
+        speakers = resolve_speakers(body.speakers or settings.get("speakers"))
+        fmt = get_format(body.format)
+        writer_name = body.writer or str(settings.get("writer") or "gemini")
+        voices = [v for v in (body.voices or []) if v]
+        if not voices:
+            voices = [str(settings.get("voice") or "edge")]
+
+        results: list[dict[str, Any]] = []
+        for provider in voices:
+            try:
+                audio = core.voice_lines(lines, speakers, settings, voice_override=provider)
+            except Exception as e:  # noqa: BLE001 - one provider must not stop the rest
+                results.append({"voice": provider, "ok": False, "detail": _error_detail(e)})
+                continue
+            episode = core.Episode(
+                lines=lines,
+                audio=audio,
+                source="",
+                source_path="(compare)",
+                format=fmt.key,
+                writer=writer_name,
+                voices=[s.voice_ref() for s in speakers],
+            )
+            episode_id = uuid.uuid4().hex[:12]
+            with lock:
+                episodes[episode_id] = episode
+                while len(episodes) > MAX_EPISODES:
+                    episodes.popitem(last=False)
+            results.append(
+                {
+                    "voice": provider,
+                    "ok": True,
+                    "id": episode_id,
+                    "transcript": "\n\n".join(ln.text for ln in lines),
+                }
+            )
+        return JSONResponse({"results": results})
+
+    @app.post("/api/test", dependencies=[Depends(guard)])
+    def test_connection(body: TestBody) -> JSONResponse:
+        """Check that the configured writer and voice can be reached."""
+        from narra import testconn
+
+        effective = _settings_with_overrides(settings, body)
+        writer_name = str(effective.get("writer") or "gemini")
+        voice_name = str(effective.get("voice") or "edge")
+        w_ok, w_detail = testconn.test_writer(effective, writer_name)
+        v_ok, v_detail = testconn.test_voice(effective, voice_name)
+        return JSONResponse(
+            {
+                "writer": {"name": writer_name, "ok": w_ok, "detail": w_detail},
+                "voice": {"name": voice_name, "ok": v_ok, "detail": v_detail},
             }
         )
 

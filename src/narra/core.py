@@ -157,7 +157,10 @@ def voice_lines(
             vset = voice_settings(settings, provider_name)
             request = SpeakRequest(
                 text=line.text,
-                voice_id=speaker.voice_id,
+                # When a provider is forced (e.g. compare), the speaker's voice
+                # id belongs to a different provider, so let this provider use
+                # its own default.
+                voice_id="" if voice_override else speaker.voice_id,
                 model=speaker.model or vset.get("model"),
                 base_url=vset.get("base_url"),
                 api_key=vset.get("api_key"),
