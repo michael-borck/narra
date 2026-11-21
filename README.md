@@ -1,5 +1,9 @@
 # Narra — tell it into a podcast
 
+<p align="center">
+  <img src="landing/assets/narra.png" alt="Narra tell it into a podcast" width="720">
+</p>
+
 > *narra (Spanish): "tell!" / "narrate!"*
 
 A small, privacy-first tool that turns a source document into a two (or more)
